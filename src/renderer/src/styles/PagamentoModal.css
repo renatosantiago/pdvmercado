@@ -1,0 +1,71 @@
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-pagamento {
+  background: white;
+  /* border-radius: 12px; */
+  box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+  width: 100%;
+  max-width: 550px;
+  animation: modalSlideIn 0.4s ease-out;
+}
+
+.modal-header {
+  background: linear-gradient(to right, #52678e 0%, #52678e 100%); /*linear-gradient(135deg, #28a745 0%, #20c997 100%); */
+  color: white;
+  padding: 25px;
+  /* border-radius: 12px 12px 0 0; */
+  text-align: center;
+}
+
+.modal-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.modal-body {
+  padding: 30px;
+  text-align: center;
+}
+
+.pagamento-select {
+  width: 100%;
+  padding: 14px;
+  font-size: 18px;
+  /* border-radius: 8px; */
+  border: 2px solid #28a745;
+  margin-bottom: 20px;
+}
+
+.pagamento-select:focus {
+  outline: none;
+  border-width: 6px;
+  border-color: #6366f1; /* Indigo-500, ajuste se quiser outra cor */
+  box-shadow: 0 0 0 2px #a5b4fc33;
+}
+
+.pagamento-mensagem {
+  margin-top: 10px;
+  color: #155724;
+  font-weight: 600;
+}
+
+.modal-footer {
+  padding: 20px;
+  border-top: 1px solid #b3b5b7;
+  text-align: center;
+}
+
+.modal-info {
+  font-size: 13px;
+  color: #666;
+  font-style: italic;
+}

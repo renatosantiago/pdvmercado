@@ -1,0 +1,6 @@
+.pagamento-select:focus {
+  outline: none;
+  border-width: 3px;
+  border-color: #6366f1; /* Indigo-500, ajuste se quiser outra cor */
+  box-shadow: 0 0 0 2px #a5b4fc33;
+}
