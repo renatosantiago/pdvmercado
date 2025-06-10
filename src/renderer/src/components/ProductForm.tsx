@@ -1,5 +1,5 @@
 // src/renderer/src/components/ProductForm.tsx
-import React from 'react';
+import React, { RefObject } from 'react';
 
 interface ProductFormProps {
   codigoAtual: string;
@@ -15,6 +15,7 @@ interface ProductFormProps {
   onCodigoKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onQuantidadeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onQuantidadeKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  codigoInputRef?: RefObject<HTMLInputElement | null>;
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
@@ -30,7 +31,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
   onCodigoChange,
   onCodigoKeyPress,
   onQuantidadeChange,
-  onQuantidadeKeyPress
+  onQuantidadeKeyPress,
+  codigoInputRef
 }) => {
   // Função para formatação de moeda
   const formatCurrency = (value: number): string => {
@@ -51,6 +53,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
           )}
         </label>
         <input
+          id="codigo-input"
+          ref={codigoInputRef}
+          data-testid="codigo-input"
           type="text"
           value={codigoAtual}
           onChange={onCodigoChange}

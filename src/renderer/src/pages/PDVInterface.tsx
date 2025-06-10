@@ -1,5 +1,5 @@
 // src/renderer/src/components/PDVInterface.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // Importar componentes
 import Header from '../components/Header';
@@ -12,7 +12,6 @@ import FooterActions from '../components/FooterActions';
 import { Item, ShortcutKey } from '../types';
 import { useElectronAPI } from '../hooks/useElectronAPI';
 
-
 const PDVInterface: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [codigoAtual, setCodigoAtual] = useState<string>('');
@@ -22,12 +21,99 @@ const PDVInterface: React.FC = () => {
   const [success, setSuccess] = useState<string>('');
   const [subtotal, setSubtotal] = useState<number>(0);
 
+  // ✅ NOVO: Estados para modais customizados
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [confirmMessage, setConfirmMessage] = useState<string>('');
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  // ✅ NOVO: Ref para o input do código
+  const codigoInputRef = useRef<HTMLInputElement>(null);
+
   // Hook do Electron
   const { isConnected, findProductByCode, createSale, onBarcodeScanned, onShortcut, onNotification } = useElectronAPI();
 
   // Cálculos derivados
   const totalGeral: number = items.reduce((sum: number, item: Item) => sum + item.total, 0);
   const valorUnitarioAtual: number = items.length > 0 ? items[items.length - 1].vlrUnit : 0;
+
+  // ✅ NOVO: Função para focar no input de código de forma robusta
+  const focusCodigoInput = (delay: number = 100): void => {
+    setTimeout(() => {
+      // Método 1: Usar ref (preferencial)
+      if (codigoInputRef.current) {
+        codigoInputRef.current.focus();
+        codigoInputRef.current.select(); // Seleciona todo o texto
+        console.log('✅ Foco restaurado via ref');
+        return;
+      }
+
+      // Método 2: Fallback com ID específico
+      const inputById = document.getElementById('codigo-input') as HTMLInputElement;
+      if (inputById) {
+        inputById.focus();
+        inputById.select();
+        console.log('✅ Foco restaurado via ID');
+        return;
+      }
+
+      // Método 3: Fallback com seletor melhorado
+      const inputByClass = document.querySelector('[data-testid="codigo-input"]') as HTMLInputElement;
+      if (inputByClass) {
+        inputByClass.focus();
+        inputByClass.select();
+        console.log('✅ Foco restaurado via data-testid');
+        return;
+      }
+
+      // Método 4: Último recurso - seletor genérico
+      const inputGeneric = document.querySelector('input[type="text"]:first-of-type') as HTMLInputElement;
+      if (inputGeneric) {
+        inputGeneric.focus();
+        inputGeneric.select();
+        console.log('✅ Foco restaurado via seletor genérico');
+      } else {
+        console.warn('⚠️ Não foi possível focar no input de código');
+      }
+    }, delay);
+  };
+
+  // ✅ NOVO: Modal de confirmação customizado (substitui confirm())
+  const showCustomConfirm = (message: string, onConfirm: () => void): void => {
+    setConfirmMessage(message);
+    setPendingAction(() => onConfirm);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmModalClose = (confirmed: boolean): void => {
+    setShowConfirmModal(false);
+    
+    if (confirmed && pendingAction) {
+      pendingAction();
+    }
+    
+    setPendingAction(null);
+    setConfirmMessage('');
+    
+    // ✅ CORRIGIDO: Focar imediatamente após fechar modal
+    focusCodigoInput(50);
+  };
+
+  // ✅ NOVO: Função para mostrar notificações (substitui alert())
+  const showNotification = (message: string, type: 'success' | 'error' = 'success'): void => {
+    if (type === 'success') {
+      setSuccess(message);
+      setError('');
+    } else {
+      setError(message);
+      setSuccess('');
+    }
+
+    // Auto-limpar após 3 segundos
+    setTimeout(() => {
+      setError('');
+      setSuccess('');
+    }, 3000);
+  };
 
   // Listener para código de barras e atalhos
   useEffect(() => {
@@ -50,17 +136,7 @@ const PDVInterface: React.FC = () => {
     // Notificações do sistema
     const removeNotificationListener = onNotification((notification: any) => {
       console.log('🔔 Notificação recebida:', notification);
-      if (notification.type === 'success') {
-        setSuccess(notification.message);
-      } else if (notification.type === 'error') {
-        setError(notification.message);
-      }
-      
-      // Auto-limpar após duração especificada
-      setTimeout(() => {
-        setError('');
-        setSuccess('');
-      }, notification.duration || 3000);
+      showNotification(notification.message, notification.type);
     });
 
     // Cleanup
@@ -113,30 +189,20 @@ const PDVInterface: React.FC = () => {
         setSubtotal(novoItem.total);
       }
 
-      
       limparCampos();
-      setSuccess(`Produto "${produto.descricao}" adicionado com sucesso!`);
+      showNotification(`Produto "${produto.descricao}" adicionado com sucesso!`, 'success');
       
-      // Focar no campo código após adicionar
-      setTimeout(() => {
-        const codigoInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-        if (codigoInput) codigoInput.focus();
-      }, 100);
+      // ✅ CORRIGIDO: Focar no campo código após adicionar
+      focusCodigoInput(100);
       
     } catch (error: any) {
-      setError(error.message);
+      showNotification(error.message, 'error');
       setCodigoAtual('');
-      setTimeout(() => {
-        const codigoInput = document.querySelector('input[type="text"]') as HTMLInputElement;
-        if (codigoInput) codigoInput.focus();
-      }, 100);
+      
+      // ✅ CORRIGIDO: Focar no campo código após erro
+      focusCodigoInput(100);
     } finally {
       setLoading(false);
-      // Limpar mensagens após alguns segundos
-      setTimeout(() => {
-        setError('');
-        setSuccess('');
-      }, 3000);
     }
   };
 
@@ -157,6 +223,7 @@ const PDVInterface: React.FC = () => {
         break;
       case 'ESC':
         limparCampos();
+        focusCodigoInput();
         break;
     }
   };
@@ -166,9 +233,11 @@ const PDVInterface: React.FC = () => {
     addItemByCodigo(codigoAtual, quantidadeAtual);
   };
 
+  // ✅ CORRIGIDO: Finalizar venda sem bloqueio de foco
   const finalizarVenda = async (): Promise<void> => {
     if (items.length === 0) {
-      alert('Não há itens para finalizar a venda!');
+      showNotification('Não há itens para finalizar a venda!', 'error');
+      focusCodigoInput();
       return;
     }
 
@@ -179,43 +248,57 @@ const PDVInterface: React.FC = () => {
       }).format(value);
     };
 
-    const resumo = `
-      RESUMO DA VENDA:
-      ${items.map((item, index) => 
-        `${index + 1}. ${item.descricao} - Qtd: ${item.qtde} - ${formatCurrency(item.total)}`
-      ).join('\n')}
-
-      TOTAL: ${formatCurrency(totalGeral)}
-    `;
+    const resumo = `RESUMO DA VENDA:\n${items.map((item, index) => 
+      `${index + 1}. ${item.descricao} - Qtd: ${item.qtde} - ${formatCurrency(item.total)}`
+    ).join('\n')}\n\nTOTAL: ${formatCurrency(totalGeral)}`;
     
-    if (confirm(`${resumo}\n\nConfirma a finalização da venda?`)) {
-      setLoading(true);
-      try {
-        const venda = await createSale(items);
-        alert(`Venda finalizada com sucesso!\nID da Venda: ${venda.id}`);
-        setItems([]);
-        limparCampos();
-        setSuccess('Venda finalizada com sucesso!');
-      } catch (error: any) {
-        setError(`Erro ao finalizar venda: ${error.message}`);
-      } finally {
-        setLoading(false);
+    // ✅ CORRIGIDO: Usar modal customizado em vez de confirm()
+    showCustomConfirm(
+      `${resumo}\n\nConfirma a finalização da venda?`,
+      async () => {
+        setLoading(true);
+        try {
+          const venda = await createSale(items);
+          
+          // ✅ CORRIGIDO: Usar notificação em vez de alert()
+          showNotification(`Venda finalizada com sucesso! ID: ${venda.id}`, 'success');
+          
+          setItems([]);
+          limparCampos();
+          
+          // ✅ CORRIGIDO: Focar após operação completa
+          focusCodigoInput(200);
+          
+        } catch (error: any) {
+          showNotification(`Erro ao finalizar venda: ${error.message}`, 'error');
+          focusCodigoInput(100);
+        } finally {
+          setLoading(false);
+        }
       }
-    }
+    );
   };
 
+  // ✅ CORRIGIDO: Cancelar item sem bloqueio de foco
   const cancelarItem = (): void => {
     if (items.length > 0) {
-      const confirmacao = confirm(`Deseja remover o item "${items[items.length - 1].descricao}"?`);
-      if (confirmacao) {
-        setItems(items.slice(0, -1));
-        setSuccess('Item removido com sucesso!');
-      }
+      const ultimoItem = items[items.length - 1];
+      
+      showCustomConfirm(
+        `Deseja remover o item "${ultimoItem.descricao}"?`,
+        () => {
+          setItems(items.slice(0, -1));
+          showNotification('Item removido com sucesso!', 'success');
+          focusCodigoInput();
+        }
+      );
     } else {
-      alert('Não há itens para cancelar!');
+      showNotification('Não há itens para cancelar!', 'error');
+      focusCodigoInput();
     }
   };
 
+  // ✅ CORRIGIDO: Cancelar venda sem bloqueio de foco
   const cancelarVenda = (): void => {
     if (items.length > 0) {
       const formatCurrency = (value: number): string => {
@@ -225,13 +308,18 @@ const PDVInterface: React.FC = () => {
         }).format(value);
       };
 
-      if (confirm(`Deseja cancelar toda a venda? Total: ${formatCurrency(totalGeral)}`)) {
-        setItems([]);
-        limparCampos();
-        setSuccess('Venda cancelada com sucesso!');
-      }
+      showCustomConfirm(
+        `Deseja cancelar toda a venda? Total: ${formatCurrency(totalGeral)}`,
+        () => {
+          setItems([]);
+          limparCampos();
+          showNotification('Venda cancelada com sucesso!', 'success');
+          focusCodigoInput();
+        }
+      );
     } else {
-      alert('Não há venda em andamento!');
+      showNotification('Não há venda em andamento!', 'error');
+      focusCodigoInput();
     }
   };
 
@@ -245,6 +333,9 @@ const PDVInterface: React.FC = () => {
     if (!isConnected) {
       console.log('🌐 Modo web - usando atalhos do DOM');
       const handleKeyPress = (e: KeyboardEvent): void => {
+        // ✅ NOVO: Ignorar se modal estiver aberto
+        if (showConfirmModal) return;
+        
         if (e.key === 'F1') {
           e.preventDefault();
           console.log('🔥 F1 pressionado (DOM)');
@@ -263,8 +354,12 @@ const PDVInterface: React.FC = () => {
           handleShortcut('F4');
         } else if (e.key === 'Escape') {
           e.preventDefault();
-          console.log('🔥 ESC pressionado (DOM)');
-          handleShortcut('ESC');
+          if (showConfirmModal) {
+            handleConfirmModalClose(false);
+          } else {
+            console.log('🔥 ESC pressionado (DOM)');
+            handleShortcut('ESC');
+          }
         }
       };
 
@@ -275,7 +370,12 @@ const PDVInterface: React.FC = () => {
     } else {
       console.log('🔗 Modo Electron - usando atalhos globais');
     }
-  }, [isConnected, codigoAtual, quantidadeAtual, items]);
+  }, [isConnected, codigoAtual, quantidadeAtual, items, showConfirmModal]);
+
+  // ✅ NOVO: Auto-foco inicial e quando componente monta
+  useEffect(() => {
+    focusCodigoInput(500); // Foco inicial
+  }, []);
 
   // Handlers para o formulário
   const handleCodigoChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -334,6 +434,8 @@ const PDVInterface: React.FC = () => {
             onCodigoKeyPress={handleCodigoKeyPress}
             onQuantidadeChange={handleQuantidadeChange}
             onQuantidadeKeyPress={handleQuantidadeKeyPress}
+            // ✅ NOVO: Passar ref para o componente filho
+            codigoInputRef={codigoInputRef}
           />
         </div>
 
@@ -345,6 +447,48 @@ const PDVInterface: React.FC = () => {
           isConnected={isConnected}
           isListening={isConnected}
         />
+
+        {/* ✅ NOVO: Notificações customizadas */}
+        {(error || success) && (
+          <div className="fixed top-4 right-4 z-50">
+            {error && (
+              <div className="bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg mb-2 animate-pulse">
+                ❌ {error}
+              </div>
+            )}
+            {success && (
+              <div className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg mb-2 animate-pulse">
+                ✅ {success}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ✅ NOVO: Modal de confirmação customizado */}
+        {showConfirmModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+              <h3 className="text-lg font-semibold mb-4 text-gray-800">Confirmação</h3>
+              <div className="text-gray-600 mb-6 whitespace-pre-line font-mono text-sm">
+                {confirmMessage}
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => handleConfirmModalClose(false)}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleConfirmModalClose(true)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
