@@ -101,8 +101,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
       {/* Total */}
       <div className="bg-blue-50 border-2 border-blue-200 p-4 rounded-lg text-center">
-        <h3 className="text-base font-bold text-gray-800 mb-1">TOTAL</h3>
-        <div className="text-3xl font-bold text-blue-600">
+        <h3 className="text-base text-2xl font-bold text-gray-800 mb-1">TOTAL</h3> 
+        <div className="text-5xl font-bold text-blue-600">
           {formatCurrency(totalGeral)}
         </div>
       </div>

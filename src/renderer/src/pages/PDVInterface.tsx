@@ -260,20 +260,19 @@ const PDVInterface: React.FC = () => {
         try {
           const venda = await createSale(items);
           
-          // ✅ CORRIGIDO: Usar notificação em vez de alert()
+          // Usar notificação em vez de alert()
           showNotification(`Venda finalizada com sucesso! ID: ${venda.id}`, 'success');
-          
-          setItems([]);
-          limparCampos();
-          
-          // ✅ CORRIGIDO: Focar após operação completa
-          focusCodigoInput(200);
           
         } catch (error: any) {
           showNotification(`Erro ao finalizar venda: ${error.message}`, 'error');
           focusCodigoInput(100);
         } finally {
+          setItems([]);
+          limparCampos();
+          setSubtotal(0);
           setLoading(false);
+          // Focar após operação completa
+          focusCodigoInput(200);
         }
       }
     );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// Interfaces TypeScript
+// Interfaces TypeScript (mantidas iguais)
 interface Product {
   id: number;
   codigo: string;
@@ -29,11 +29,25 @@ interface Sale {
   items: any[];
 }
 
-type ShortcutKey = 'F1' | 'F2' | 'F3' | 'F4' | 'ESC';
+interface ApiStatus {
+  caixa_id: string;
+  is_online: boolean;
+  api_available: boolean;
+  cache: {
+    total_produtos: number;
+    vendas_pendentes: number;
+    cache_size_mb: number;
+    ultima_sync: string | null;
+  };
+  pending_sales: number;
+}
 
-// Hook customizado para integração com Electron
+type ShortcutKey = 'F1' | 'F2' | 'F3' | 'F4' | 'F5' | 'ESC';
+
+// ✅ HOOK CORRIGIDO PARA USAR FUNÇÕES DE CLEANUP
 export const useElectronAPI = () => {
   const [isConnected, setIsConnected] = useState(false);
+  const [apiStatus, setApiStatus] = useState<ApiStatus | null>(null);
 
   useEffect(() => {
     // Verifica se está rodando no Electron
@@ -43,16 +57,24 @@ export const useElectronAPI = () => {
       // Inicia listener do código de barras
       (window as any).electronAPI.barcode.listen();
       
-      // Cleanup
+      // ✅ CORRIGIDO: Usar função de cleanup retornada
+      const removeStatusListener = (window as any).electronAPI.api.onStatusUpdate((status: ApiStatus) => {
+        setApiStatus(status);
+      });
+      
+      // ✅ CORRIGIDO: Cleanup usando a função retornada
       return () => {
         (window as any).electronAPI.barcode.removeListener();
+        if (removeStatusListener && typeof removeStatusListener === 'function') {
+          removeStatusListener();
+        }
       };
     }
   }, []);
 
   const findProductByCode = async (codigo: string): Promise<Product | null> => {
     if (typeof window === 'undefined' || !(window as any).electronAPI) {
-      // Fallback para desenvolvimento web
+      // Fallback para desenvolvimento web (mantido igual)
       const produtosFallback: { [key: string]: Omit<Product, 'id' | 'estoque' | 'ativo' | 'created_at' | 'updated_at'> } = {
         '37658990198': { codigo: '37658990198', descricao: 'Macarrão Romanha 500G', preco: 4.87 },
         '88769022': { codigo: '88769022', descricao: 'Arroz Tio João 5kg', preco: 27.90 },
@@ -88,10 +110,24 @@ export const useElectronAPI = () => {
     return response.data;
   };
 
-  const createSale = async (items: Item[]): Promise<Sale> => {
-    console.log('🛒 Tentando criar venda...', items);
+  const searchProducts = async (termo: string): Promise<Product[]> => {
+    if (typeof window === 'undefined' || !(window as any).electronAPI) {
+      return []; // Fallback vazio para modo web
+    }
+
+    const response = await (window as any).electronAPI.product.search(termo);
     
-    // Fallback garantido
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    return response.data || [];
+  };
+
+  const createSale = async (items: Item[]): Promise<Sale> => {
+    console.log('🛒 Criando venda via API...', items);
+    
+    // Fallback garantido para modo web
     const fallbackSale = (): Sale => ({
       id: Date.now(),
       total: items.reduce((sum, item) => sum + item.total, 0),
@@ -103,7 +139,6 @@ export const useElectronAPI = () => {
       }))
     });
 
-    // Verificações progressivas
     if (typeof window === 'undefined') {
       console.log('🌐 Modo servidor');
       return fallbackSale();
@@ -117,11 +152,10 @@ export const useElectronAPI = () => {
 
     if (!electronAPI.sale?.create) {
       console.log('⚠️ API de vendas não configurada - usando fallback');
-      console.log('APIs disponíveis:', Object.keys(electronAPI));
       return fallbackSale();
     }
 
-    // Tentar usar a API do Electron
+    // Usar a API do Electron
     try {
       const vendaData = {
         items: items.map(item => ({
@@ -131,56 +165,83 @@ export const useElectronAPI = () => {
         }))
       };
 
-      console.log('📤 Enviando dados da venda:', vendaData);
+      console.log('📤 Enviando venda para API:', vendaData);
       const response = await electronAPI.sale.create(vendaData);
-      console.log('📥 Resposta recebida:', response);
+      console.log('📥 Resposta da API:', response);
       
       if (response.success) {
         return response.data;
       } else {
         console.error('Erro na API:', response.error);
-        return fallbackSale();
+        throw new Error(response.error);
       }
     } catch (error) {
-      console.error('Erro ao comunicar com Electron:', error);
-      return fallbackSale();
+      console.error('Erro ao comunicar com API:', error);
+      throw error;
     }
   };
 
+  const syncCache = async (): Promise<boolean> => {
+    if (typeof window === 'undefined' || !(window as any).electronAPI?.cache) {
+      console.log('🌐 Cache sync não disponível no modo web');
+      return false;
+    }
+
+    try {
+      const response = await (window as any).electronAPI.cache.sync();
+      return response.success;
+    } catch (error) {
+      console.error('Erro ao sincronizar cache:', error);
+      return false;
+    }
+  };
+
+  const getApiStatus = async (): Promise<ApiStatus | null> => {
+    if (typeof window === 'undefined' || !(window as any).electronAPI?.api) {
+      return null;
+    }
+
+    try {
+      const response = await (window as any).electronAPI.api.getStatus();
+      return response.success ? response.data : null;
+    } catch (error) {
+      console.error('Erro ao obter status da API:', error);
+      return null;
+    }
+  };
+
+  // ✅ CORRIGIDO: onBarcodeScanned com cleanup
   const onBarcodeScanned = (callback: (codigo: string) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
-      (window as any).electronAPI.barcode.onScanned(callback);
+      return (window as any).electronAPI.barcode.onScanned(callback);
     }
+    return () => {}; // Retorna função vazia se não conectado
   };
 
-  // ATALHOS via IPC
+  // ✅ CORRIGIDO: onShortcut com cleanup
   const onShortcut = (callback: (key: string) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.shortcuts) {
-      (window as any).electronAPI.shortcuts.onShortcut(callback);
-      
-      return () => {
-        (window as any).electronAPI.shortcuts.removeShortcutListener();
-      };
+      return (window as any).electronAPI.shortcuts.onShortcut(callback);
     }
-    return () => {};
+    return () => {}; // Retorna função vazia se não conectado
   };
 
-  // NOTIFICAÇÕES via IPC  
+  // ✅ CORRIGIDO: onNotification com cleanup
   const onNotification = (callback: (notification: any) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.notifications) {
-      (window as any).electronAPI.notifications.onNotification(callback);
-      
-      return () => {
-        (window as any).electronAPI.notifications.removeNotificationListener();
-      };
+      return (window as any).electronAPI.notifications.onNotification(callback);
     }
-    return () => {};
+    return () => {}; // Retorna função vazia se não conectado
   };
 
   return {
     isConnected,
+    apiStatus,
     findProductByCode,
+    searchProducts,
     createSale,
+    syncCache,
+    getApiStatus,
     onBarcodeScanned,
     onShortcut,
     onNotification

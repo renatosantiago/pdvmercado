@@ -1,12 +1,16 @@
-// src/renderer/src/components/Header.tsx
 import React, { useState, useEffect } from 'react';
 
-interface NetworkStatus {
+interface ApiStatus {
   caixa_id: string;
   is_online: boolean;
-  is_server: boolean;
-  network_path: string;
-  last_sync: string;
+  api_available: boolean;
+  cache: {
+    total_produtos: number;
+    vendas_pendentes: number;
+    cache_size_mb: number;
+    ultima_sync: string | null;
+  };
+  pending_sales: number;
 }
 
 interface HeaderProps {
@@ -15,7 +19,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => {
-  const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(null);
+  const [apiStatus, setApiStatus] = useState<ApiStatus | null>(null);
 
   // Formatação de data
   const currentDate: string = new Date().toLocaleDateString('pt-BR', {
@@ -26,25 +30,25 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
     minute: '2-digit'
   });
 
-  // Buscar status de rede quando conectado
+  // ✅ ATUALIZADO: Buscar status da API
   useEffect(() => {
-    if (isConnected && typeof window !== 'undefined' && (window as any).electronAPI?.network) {
-      const fetchNetworkStatus = async () => {
+    if (isConnected && typeof window !== 'undefined' && (window as any).electronAPI?.api) {
+      const fetchApiStatus = async () => {
         try {
-          const response = await (window as any).electronAPI.network.getStatus();
+          const response = await (window as any).electronAPI.api.getStatus();
           if (response.success) {
-            setNetworkStatus(response.data);
+            setApiStatus(response.data);
           }
         } catch (error) {
-          console.error('Erro ao buscar status de rede:', error);
+          console.error('Erro ao buscar status da API:', error);
         }
       };
 
-      fetchNetworkStatus();
+      fetchApiStatus();
 
       // Listener para atualizações de status
-      const removeListener = (window as any).electronAPI.network.onStatusUpdate((status: NetworkStatus) => {
-        setNetworkStatus(status);
+      const removeListener = (window as any).electronAPI.api.onStatusUpdate((status: ApiStatus) => {
+        setApiStatus(status);
       });
 
       return () => {
@@ -55,13 +59,13 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
 
   // Determinar o nome do caixa para exibir
   const getCaixaDisplay = (): string => {
-    if (networkStatus) {
-      return networkStatus.is_server ? 'SERVIDOR' : networkStatus.caixa_id;
+    if (apiStatus) {
+      return apiStatus.caixa_id;
     }
-    return 'Caixa: 01'; // Fallback padrão
+    return 'PDV Cliente'; // Fallback padrão
   };
 
-  // Determinar status de conexão
+  // ✅ ATUALIZADO: Status de conexão com API
   const getConnectionStatus = () => {
     if (!isConnected) {
       return {
@@ -70,30 +74,23 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
       };
     }
 
-    if (networkStatus?.is_server) {
+    if (apiStatus?.is_online && apiStatus?.api_available) {
       return {
-        label: '🖥️ Servidor',
-        className: 'bg-blue-500 text-white px-2 py-1 rounded text-xs'
-      };
-    }
-
-    if (networkStatus?.is_online) {
-      return {
-        label: '🔗 Online',
+        label: '🟢 API Online',
         className: 'bg-green-500 text-white px-2 py-1 rounded text-xs'
       };
     }
 
-    if (networkStatus && !networkStatus.is_online) {
+    if (apiStatus && !apiStatus.is_online) {
       return {
-        label: '🔄 Offline',
+        label: '🔄 Cache Offline',
         className: 'bg-orange-500 text-white px-2 py-1 rounded text-xs'
       };
     }
 
     return {
       label: '🔗 Conectado',
-      className: 'bg-green-500 text-white px-2 py-1 rounded text-xs'
+      className: 'bg-blue-500 text-white px-2 py-1 rounded text-xs'
     };
   };
 
@@ -108,25 +105,25 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
           {connectionStatus.label}
         </span>
 
+        {/* ✅ NOVO: Vendas pendentes */}
+        {(apiStatus?.pending_sales ?? 0) > 0 && (
+          <span className="bg-red-500 text-white px-2 py-1 rounded text-xs animate-pulse">
+            ⏳ {apiStatus?.pending_sales ?? 0} pendente{(apiStatus?.pending_sales ?? 0) > 1 ? 's' : ''}
+          </span>
+        )}
+
         {isListening && (
           <span className="bg-blue-400 text-white px-2 py-1 rounded text-xs">
             📷 Leitor Ativo
           </span>
         )}
-
-        {/* Informações extras para debug (apenas em desenvolvimento) */}
-        {process.env.NODE_ENV === 'development' && networkStatus && (
-          <span className="bg-gray-600 text-white px-2 py-1 rounded text-xs">
-            {networkStatus.is_online ? 'NET' : 'LOCAL'}
-          </span>
-        )}
       </div>
 
       <div className="flex items-center space-x-4">
-        {/* Mostrar último sync se for cliente */}
-        {networkStatus && !networkStatus.is_server && (
+        {/* ✅ NOVO: Última sincronização */}
+        {apiStatus?.cache?.ultima_sync && (
           <span className="text-xs opacity-75">
-            Sync: {new Date(networkStatus.last_sync).toLocaleTimeString('pt-BR', { 
+            Sync: {new Date(apiStatus.cache.ultima_sync).toLocaleTimeString('pt-BR', { 
               hour: '2-digit', 
               minute: '2-digit' 
             })}

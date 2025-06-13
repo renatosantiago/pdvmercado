@@ -3,16 +3,16 @@ import path, { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { createFileRoute, createURLRoute } from 'electron-router-dom'
 
-// IMPORTAÇÕES PARA PDV COM REDE
-import { NetworkDatabaseService } from './services/NetworkDatabaseService'
-import { NetworkConfig } from './config/NetworkConfig'
+// IMPORTAÇÕES ATUALIZADAS PARA API
+import { PdvApiService } from './services/PdvApiService'
+import { ApiConfig } from './config/ApiConfig'
 import { ProductService } from './services/ProductService'
 import { BarcodeService } from './services/BarcodeService'
-import type { NetworkStatus, PDVNotification } from './types/NetworkTypes'
+import type { PDVNotification } from './types/NetworkTypes'
 
-// SERVIÇOS PDV COM SUPORTE A REDE
-let networkDatabaseService: NetworkDatabaseService;
-let networkConfig: NetworkConfig;
+// SERVIÇOS PDV COM API
+let pdvApiService: PdvApiService;
+let apiConfig: ApiConfig;
 let productService: ProductService;
 let barcodeService: BarcodeService | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -31,7 +31,7 @@ function createWindow(): void {
       icon: join(__dirname, 'resources/icon.png')
      }),
     webPreferences: {
-      devTools: false,
+      devTools: true,
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
@@ -39,7 +39,7 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.setMenu(null);
+  // mainWindow.setMenu(null);
 
   // Set main window icon for macOS
   if (process.platform === 'darwin') {
@@ -68,33 +68,42 @@ function createWindow(): void {
   // HMR for renderer base on electron-vite cli.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(devServerUrl)
-    // mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(...fileRout)
   }
 }
 
-// FUNÇÃO PARA INICIALIZAR SERVIÇOS PDV COM REDE
+// ✅ FUNÇÃO ATUALIZADA PARA INICIALIZAR SERVIÇOS COM API
 async function initializePDVServices(): Promise<void> {
   try {
-    console.log('🚀 Inicializando serviços PDV com suporte a rede...');
+    console.log('🚀 Inicializando serviços PDV com API...');
     
-    // Inicializar configuração de rede
-    networkConfig = NetworkConfig.getInstance();
+    // Inicializar configuração da API
+    apiConfig = ApiConfig.getInstance();
     
     // Criar arquivo de configuração se não existir
     try {
-      networkConfig.createConfigFile();
+      apiConfig.createConfigFile();
     } catch (error) {
       console.log('ℹ️ Arquivo de configuração já existe');
     }
     
-    // Inicializar banco de dados com suporte a rede
-    networkDatabaseService = new NetworkDatabaseService();
-    await networkDatabaseService.initialize();
+    // Mostrar configuração atual
+    apiConfig.printConfiguration();
+    
+    // Inicializar serviço API integrado com cache
+    pdvApiService = new PdvApiService(apiConfig.config.caixaId, {
+      baseUrl: apiConfig.config.serverUrl,
+      apiKey: apiConfig.config.apiKey,
+      timeout: apiConfig.config.timeout,
+      retries: apiConfig.config.retries
+    });
+    
+    await pdvApiService.initialize();
     
     // Inicializar serviço de produtos
-    productService = new ProductService(networkDatabaseService);
+    productService = new ProductService(pdvApiService);
     
     // Inicializar leitor de código de barras (opcional)
     try {
@@ -107,26 +116,26 @@ async function initializePDVServices(): Promise<void> {
     
     // Enviar status inicial para o renderer
     setTimeout(() => {
-      sendNetworkStatusUpdate();
+      sendStatusUpdate();
     }, 2000);
     
-    console.log('✅ Serviços PDV com rede inicializados com sucesso');
+    console.log('✅ Serviços PDV com API inicializados com sucesso');
   } catch (error) {
     console.error('❌ Erro ao inicializar serviços PDV:', error);
     throw error;
   }
 }
 
-// FUNÇÃO PARA ENVIAR STATUS DE REDE PARA O RENDERER
-function sendNetworkStatusUpdate(): void {
+// ✅ FUNÇÃO ATUALIZADA PARA ENVIAR STATUS
+function sendStatusUpdate(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    networkDatabaseService.getNetworkStatus().then(status => {
-      mainWindow?.webContents.send('network:status-update', status);
+    productService.getStatus().then(status => {
+      mainWindow?.webContents.send('api:status-update', status);
     });
   }
 }
 
-// HANDLERS IPC PARA PDV COM REDE
+// ✅ HANDLERS IPC ATUALIZADOS PARA API
 function setupPDVHandlers(): void {
   // Handler para buscar produto por código
   ipcMain.handle('product:findByCode', async (event, codigo: string) => {
@@ -161,13 +170,29 @@ function setupPDVHandlers(): void {
     }
   });
 
+  // ✅ NOVO: Handler para buscar produtos (autocomplete)
+  ipcMain.handle('product:search', async (event, termo: string) => {
+    try {
+      const produtos = await productService.searchProducts(termo);
+      return {
+        success: true,
+        data: produtos
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
   // Handler para criar venda
   ipcMain.handle('sale:create', async (event, vendaData) => {
     try {
       const venda = await productService.createSale(vendaData);
       
       // Enviar atualização de status após venda
-      sendNetworkStatusUpdate();
+      sendStatusUpdate();
       
       return {
         success: true,
@@ -182,95 +207,13 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // Handler para relatório diário
-  ipcMain.handle('report:dailySales', async (event, date?: string) => {
+  // ✅ NOVO: Handler para sincronização manual de cache
+  ipcMain.handle('cache:sync', async () => {
     try {
-      const relatorio = await networkDatabaseService.getDailySalesReport(date);
-      return {
-        success: true,
-        data: relatorio
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  });
-
-  // Handler para produtos com estoque baixo
-  ipcMain.handle('product:lowStock', async () => {
-    try {
-      const produtos = await networkDatabaseService.getLowStockProducts();
-      return {
-        success: true,
-        data: produtos
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  });
-
-  // Handler para backup do banco
-  ipcMain.handle('database:backup', async () => {
-    try {
-      const backupPath = await networkDatabaseService.createBackup();
-      return {
-        success: true,
-        data: { backupPath }
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  });
-
-  // Handler para otimização do banco
-  ipcMain.handle('database:optimize', async () => {
-    try {
-      await networkDatabaseService.optimize();
-      return {
-        success: true,
-        data: 'Banco otimizado com sucesso'
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  });
-
-  // NOVOS HANDLERS PARA REDE
-  
-  // Status da rede
-  ipcMain.handle('network:getStatus', async () => {
-    try {
-      const status = await networkDatabaseService.getNetworkStatus();
-      return {
-        success: true,
-        data: status
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  });
-
-  // Forçar sincronização
-  ipcMain.handle('network:forceSync', async () => {
-    try {
-      const success = await networkDatabaseService.forceSyncToNetwork();
+      const success = await productService.forceSync();
       
-      // Atualizar status após sincronização
-      sendNetworkStatusUpdate();
+      // Enviar atualização de status após sincronização
+      sendStatusUpdate();
       
       return {
         success: true,
@@ -284,13 +227,13 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // Estatísticas do sistema
-  ipcMain.handle('system:getStats', async () => {
+  // ✅ NOVO: Handler para status da API e cache
+  ipcMain.handle('api:getStatus', async () => {
     try {
-      const stats = await networkDatabaseService.getSystemStats();
+      const status = await productService.getStatus();
       return {
         success: true,
-        data: stats
+        data: status
       };
     } catch (error: any) {
       return {
@@ -300,7 +243,7 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // Configuração do leitor de código de barras
+  // Handler para leitor de código de barras
   ipcMain.handle('barcode:listen', async () => {
     try {
       if (barcodeService) {
@@ -320,10 +263,10 @@ function setupPDVHandlers(): void {
     }
   });
 
-  console.log('✅ Handlers IPC do PDV com rede configurados');
+  console.log('✅ Handlers IPC do PDV com API configurados');
 }
 
-// FUNÇÃO PARA CONFIGURAR ATALHOS ESPECÍFICOS DO PDV
+// ✅ ATALHOS ATUALIZADOS COM SINCRONIZAÇÃO DE CACHE
 function setupPDVShortcuts(): void {
   // Atalhos específicos do PDV
   globalShortcut.register('F1', () => {
@@ -346,51 +289,37 @@ function setupPDVShortcuts(): void {
     mainWindow?.webContents.send('pdv:shortcut', 'ESC');
   });
 
-  // Atalho para backup rápido
-  globalShortcut.register('CommandOrControl+B', async () => {
+  // ✅ NOVO: Atalho para sincronização de cache (F5)
+  globalShortcut.register('F5', async () => {
     try {
-      const backupPath = await networkDatabaseService.createBackup();
-      mainWindow?.webContents.send('pdv:notification', {
-        type: 'success',
-        message: `Backup criado: ${path.basename(backupPath)}`
-      });
-    } catch (error) {
-      mainWindow?.webContents.send('pdv:notification', {
-        type: 'error',
-        message: 'Erro ao criar backup'
-      });
-    }
-  });
-
-  // Atalho para forçar sincronização
-  globalShortcut.register('CommandOrControl+S', async () => {
-    try {
-      const success = await networkDatabaseService.forceSyncToNetwork();
+      console.log('🔄 Sincronização manual de cache (F5)...');
+      const success = await productService.forceSync();
+      
       mainWindow?.webContents.send('pdv:notification', {
         type: success ? 'success' : 'warning',
-        message: success ? 'Sincronização realizada' : 'Sem conectividade para sincronizar'
+        message: success ? 'Cache atualizado com sucesso!' : 'Erro na sincronização do cache',
+        duration: 3000
       });
       
       if (success) {
-        sendNetworkStatusUpdate();
+        sendStatusUpdate();
       }
     } catch (error) {
       mainWindow?.webContents.send('pdv:notification', {
         type: 'error',
-        message: 'Erro na sincronização'
+        message: 'Erro na sincronização do cache'
       });
     }
   });
 
-  // Atalho para mostrar status
+  // ✅ ATUALIZADO: Atalho para mostrar status (agora inclui cache)
   globalShortcut.register('CommandOrControl+I', async () => {
     try {
-      const status = await networkDatabaseService.getConnectionInfo();
-      const pendingSync = await networkDatabaseService.getSyncPendingCount();
+      const status = await productService.getStatus();
       
       mainWindow?.webContents.send('pdv:notification', {
         type: 'info',
-        message: `${status.caixa_id} | ${status.is_online ? 'ONLINE' : 'OFFLINE'} | Pendente: ${pendingSync}`,
+        message: `${status.caixa_id} | ${status.is_online ? 'ONLINE' : 'OFFLINE'} | Cache: ${status.cache?.total_produtos || 0} produtos | Pendente: ${status.pending_sales || 0}`,
         duration: 5000
       });
     } catch (error) {
@@ -398,66 +327,59 @@ function setupPDVShortcuts(): void {
     }
   });
 
-  console.log('✅ Atalhos PDV configurados');
-}
-
-// TAREFAS AUTOMÁTICAS DO PDV COM REDE
-function setupPDVAutomation(): void {
-  // Backup automático diário às 23:00
-  const scheduleBackup = () => {
-    const now = new Date();
-    const backup = new Date();
-    backup.setHours(23, 0, 0, 0);
-    
-    if (backup <= now) {
-      backup.setDate(backup.getDate() + 1);
-    }
-    
-    const msUntilBackup = backup.getTime() - now.getTime();
-    
-    setTimeout(async () => {
-      try {
-        await networkDatabaseService.createBackup();
-        console.log('📁 Backup automático realizado');
-        
-        // Reagendar para próximo dia
-        scheduleBackup();
-      } catch (error) {
-        console.error('❌ Erro no backup automático:', error);
-      }
-    }, msUntilBackup);
-  };
-
-  // Otimização automática do banco a cada 4 horas
-  const optimizationTimer: NodeJS.Timeout = setInterval(async () => {
+  // ✅ NOVO: Atalho para estatísticas do cache (Ctrl+C)
+  globalShortcut.register('CommandOrControl+C', async () => {
     try {
-      await networkDatabaseService.optimize();
-      console.log('🔧 Otimização automática realizada');
+      const status = await productService.getStatus();
+      const cache = status.cache;
+      
+      if (cache) {
+        mainWindow?.webContents.send('pdv:notification', {
+          type: 'info',
+          message: `CACHE: ${cache.total_produtos} produtos | ${cache.cache_size_mb}MB | Última sync: ${cache.ultima_sync ? new Date(cache.ultima_sync).toLocaleTimeString() : 'Nunca'}`,
+          duration: 7000
+        });
+      }
     } catch (error) {
-      console.error('❌ Erro na otimização automática:', error);
+      console.error('Erro ao obter estatísticas do cache:', error);
     }
-  }, 4 * 60 * 60 * 1000); // 4 horas
-
-  // Atualização de status de rede a cada 30 segundos
-  const statusTimer: NodeJS.Timeout = setInterval(() => {
-    sendNetworkStatusUpdate();
-  }, 30000);
-
-  scheduleBackup();
-  
-  // Cleanup quando app fechar
-  app.on('before-quit', () => {
-    clearInterval(optimizationTimer);
-    clearInterval(statusTimer);
   });
 
-  console.log('✅ Automação PDV com rede configurada');
+  console.log('✅ Atalhos PDV configurados (F1-F5, Ctrl+I, Ctrl+C)');
+}
+
+// ✅ AUTOMAÇÃO ATUALIZADA PARA API
+function setupPDVAutomation(): void {
+  // Atualização de status a cada 30 segundos
+  const statusTimer: NodeJS.Timeout = setInterval(() => {
+    sendStatusUpdate();
+  }, 30000);
+
+  // Sincronização automática a cada 10 minutos (além da configurada no serviço)
+  // const syncTimer: NodeJS.Timeout = setInterval(async () => {
+  //   try {
+  //     const success = await productService.forceSync();
+  //     if (success) {
+  //       console.log('🔄 Sincronização automática realizada');
+  //     }
+  //   } catch (error) {
+  //     console.error('❌ Erro na sincronização automática:', error);
+  //   }
+  // }, 10 * 60 * 1000); // 10 minutos
+
+  // Cleanup quando app fechar
+  app.on('before-quit', () => {
+    clearInterval(statusTimer);
+    // clearInterval(syncTimer);
+  });
+
+  console.log('✅ Automação PDV com API configurada');
 }
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(async () => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.pdv.multicaixa')
+  electronApp.setAppUserModelId('com.pdv.api')
 
   // Default open or close DevTools by F12 in development
   app.on('browser-window-created', (_, window) => {
@@ -468,7 +390,7 @@ app.whenReady().then(async () => {
   ipcMain.on('ping', () => console.log('pong'))
 
   try {
-    // INICIALIZAR SERVIÇOS PDV COM REDE ANTES DE CRIAR JANELA
+    // ✅ INICIALIZAR SERVIÇOS PDV COM API ANTES DE CRIAR JANELA
     await initializePDVServices();
     
     // Configurar handlers IPC
@@ -507,15 +429,15 @@ app.whenReady().then(async () => {
 
 // Quit when all windows are closed, except on macOS
 app.on('window-all-closed', async () => {
-  // CLEANUP DOS SERVIÇOS PDV COM REDE
+  // ✅ CLEANUP ATUALIZADO PARA API
   try {
     if (barcodeService) {
       await barcodeService.disconnect();
     }
-    if (networkDatabaseService) {
-      await networkDatabaseService.close();
+    if (pdvApiService) {
+      await pdvApiService.close();
     }
-    console.log('✅ Serviços PDV com rede finalizados corretamente');
+    console.log('✅ Serviços PDV com API finalizados corretamente');
   } catch (error) {
     console.error('❌ Erro ao finalizar serviços PDV:', error);
   }
@@ -525,11 +447,10 @@ app.on('window-all-closed', async () => {
   }
 })
 
-// TRATAMENTO DE ERROS GLOBAIS
+// TRATAMENTO DE ERROS GLOBAIS (mantido)
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
   
-  // Notificar renderer se disponível
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('pdv:error', {
       type: 'uncaught-exception',
@@ -541,7 +462,6 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('❌ Unhandled Rejection:', reason);
   
-  // Notificar renderer se disponível
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('pdv:error', {
       type: 'unhandled-rejection',
