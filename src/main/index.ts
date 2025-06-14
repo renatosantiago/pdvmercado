@@ -16,6 +16,7 @@ let apiConfig: ApiConfig;
 let productService: ProductService;
 let barcodeService: BarcodeService | null = null;
 let mainWindow: BrowserWindow | null = null;
+let healthCheckTimer: NodeJS.Timeout | null = null;
 
 function createWindow(): void {
   // Create the browser window.
@@ -74,7 +75,7 @@ function createWindow(): void {
   }
 }
 
-// ✅ FUNÇÃO ATUALIZADA PARA INICIALIZAR SERVIÇOS COM API
+// INICIALIZAR SERVIÇOS COM API
 async function initializePDVServices(): Promise<void> {
   try {
     console.log('🚀 Inicializando serviços PDV com API...');
@@ -126,7 +127,7 @@ async function initializePDVServices(): Promise<void> {
   }
 }
 
-// ✅ FUNÇÃO ATUALIZADA PARA ENVIAR STATUS
+// FUNÇÃO PARA ENVIAR STATUS API PDV
 function sendStatusUpdate(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     productService.getStatus().then(status => {
@@ -135,7 +136,7 @@ function sendStatusUpdate(): void {
   }
 }
 
-// ✅ HANDLERS IPC ATUALIZADOS PARA API
+// HANDLERS IPC PARA API
 function setupPDVHandlers(): void {
   // Handler para buscar produto por código
   ipcMain.handle('product:findByCode', async (event, codigo: string) => {
@@ -170,7 +171,7 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // ✅ NOVO: Handler para buscar produtos (autocomplete)
+  // Handler para buscar produtos (autocomplete)
   ipcMain.handle('product:search', async (event, termo: string) => {
     try {
       const produtos = await productService.searchProducts(termo);
@@ -207,7 +208,7 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // ✅ NOVO: Handler para sincronização manual de cache
+  // Handler para sincronização manual de cache
   ipcMain.handle('cache:sync', async () => {
     try {
       const success = await productService.forceSync();
@@ -227,7 +228,7 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // ✅ NOVO: Handler para status da API e cache
+  // Handler para status da API e cache
   ipcMain.handle('api:getStatus', async () => {
     try {
       const status = await productService.getStatus();
@@ -266,7 +267,7 @@ function setupPDVHandlers(): void {
   console.log('✅ Handlers IPC do PDV com API configurados');
 }
 
-// ✅ ATALHOS ATUALIZADOS COM SINCRONIZAÇÃO DE CACHE
+// ATALHOS COM SINCRONIZAÇÃO DE CACHE
 function setupPDVShortcuts(): void {
   // Atalhos específicos do PDV
   globalShortcut.register('F1', () => {
@@ -289,7 +290,7 @@ function setupPDVShortcuts(): void {
     mainWindow?.webContents.send('pdv:shortcut', 'ESC');
   });
 
-  // ✅ NOVO: Atalho para sincronização de cache (F5)
+  // Atalho para sincronização de cache (F5)
   globalShortcut.register('F5', async () => {
     try {
       console.log('🔄 Sincronização manual de cache (F5)...');
@@ -312,7 +313,7 @@ function setupPDVShortcuts(): void {
     }
   });
 
-  // ✅ ATUALIZADO: Atalho para mostrar status (agora inclui cache)
+  // Atalho para mostrar status (inclui cache)
   globalShortcut.register('CommandOrControl+I', async () => {
     try {
       const status = await productService.getStatus();
@@ -327,7 +328,7 @@ function setupPDVShortcuts(): void {
     }
   });
 
-  // ✅ NOVO: Atalho para estatísticas do cache (Ctrl+C)
+  // Atalho para estatísticas do cache (Ctrl+C)
   globalShortcut.register('CommandOrControl+C', async () => {
     try {
       const status = await productService.getStatus();
@@ -348,32 +349,74 @@ function setupPDVShortcuts(): void {
   console.log('✅ Atalhos PDV configurados (F1-F5, Ctrl+I, Ctrl+C)');
 }
 
-// ✅ AUTOMAÇÃO ATUALIZADA PARA API
 function setupPDVAutomation(): void {
-  // Atualização de status a cada 30 segundos
+  // Atualização de status a cada 30 segundos (mantido)
   const statusTimer: NodeJS.Timeout = setInterval(() => {
     sendStatusUpdate();
   }, 30000);
 
-  // Sincronização automática a cada 10 minutos (além da configurada no serviço)
-  // const syncTimer: NodeJS.Timeout = setInterval(async () => {
-  //   try {
-  //     const success = await productService.forceSync();
-  //     if (success) {
-  //       console.log('🔄 Sincronização automática realizada');
-  //     }
-  //   } catch (error) {
-  //     console.error('❌ Erro na sincronização automática:', error);
-  //   }
-  // }, 10 * 60 * 1000); // 10 minutos
+  // Iniciar health check automático
+  startHealthCheckTimer();
 
   // Cleanup quando app fechar
   app.on('before-quit', () => {
     clearInterval(statusTimer);
-    // clearInterval(syncTimer);
+    
+    // Limpar timer de health check
+    if (healthCheckTimer) {
+      clearInterval(healthCheckTimer);
+      healthCheckTimer = null;
+    }
   });
 
-  console.log('✅ Automação PDV com API configurada');
+  console.log('✅ Automação PDV com Health Check configurada');
+}
+
+function startHealthCheckTimer(): void {
+  // Verificar se já existe um timer ativo
+  if (healthCheckTimer) {
+    clearInterval(healthCheckTimer);
+    healthCheckTimer = null;
+  }
+
+  console.log('🏥 Iniciando health check automático (a cada 1 minuto)...');
+
+  // Executar primeira verificação imediatamente
+  performHealthCheck();
+
+  // Configurar timer para executar a cada minuto (60000ms)
+  healthCheckTimer = setInterval(() => {
+    performHealthCheck();
+  }, 60000); // 1 minuto
+
+  console.log('✅ Health check timer configurado');
+}
+
+// Executar health check
+async function performHealthCheck(): Promise<void> {
+  try {
+    if (!pdvApiService) {
+      console.log('⚠️ PDV API Service não inicializado para health check');
+      return;
+    }
+
+    // Executar verificação de saúde da API
+    const isHealthy = await pdvApiService.checkApiHealth();
+    
+    console.log(`🏥 Health Check resultado: ${isHealthy ? 'API ONLINE' : 'API OFFLINE'}`);
+
+    // Enviar atualização de status para o renderer
+    sendStatusUpdate();
+
+  } catch (error) {
+    console.error('❌ Erro no health check automático:', error);
+    
+    // Em caso de erro, marcar como offline
+    if (pdvApiService) {
+      pdvApiService.isOnline = false;
+      sendStatusUpdate();
+    }
+  }
 }
 
 // This method will be called when Electron has finished initialization
@@ -390,7 +433,7 @@ app.whenReady().then(async () => {
   ipcMain.on('ping', () => console.log('pong'))
 
   try {
-    // ✅ INICIALIZAR SERVIÇOS PDV COM API ANTES DE CRIAR JANELA
+    // INICIALIZAR SERVIÇOS PDV COM API ANTES DE CRIAR JANELA
     await initializePDVServices();
     
     // Configurar handlers IPC

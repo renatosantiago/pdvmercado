@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-// ✅ APIS CORRIGIDAS - RETORNANDO FUNÇÕES DE CLEANUP
 const api = {
   // Produtos
   product: {
@@ -15,20 +14,19 @@ const api = {
     create: (vendaData: any) => ipcRenderer.invoke('sale:create', vendaData)
   },
   
-  // ✅ CORRIGIDO: Cache
   cache: {
     sync: () => ipcRenderer.invoke('cache:sync'),
     getStats: () => ipcRenderer.invoke('cache:getStats')
   },
   
-  // ✅ CORRIGIDO: Código de barras com cleanup function
+  // Código de barras com cleanup function
   barcode: {
     listen: () => ipcRenderer.invoke('barcode:listen'),
     onScanned: (callback: (codigo: string) => void) => {
       const handler = (event: any, codigo: string) => callback(codigo);
       ipcRenderer.on('barcode:scanned', handler);
       
-      // ✅ RETORNA FUNÇÃO DE CLEANUP
+      // RETORNA FUNÇÃO DE CLEANUP
       return () => {
         ipcRenderer.removeListener('barcode:scanned', handler);
       };
@@ -46,13 +44,13 @@ const api = {
     close: () => ipcRenderer.invoke('system:close')
   },
 
-  // ✅ CORRIGIDO: ATALHOS com cleanup function
+  // ATALHOS com cleanup function
   shortcuts: {
     onShortcut: (callback: (key: string) => void) => {
       const handler = (event: any, key: string) => callback(key);
       ipcRenderer.on('pdv:shortcut', handler);
       
-      // ✅ RETORNA FUNÇÃO DE CLEANUP
+      // RETORNA FUNÇÃO DE CLEANUP
       return () => {
         ipcRenderer.removeListener('pdv:shortcut', handler);
       };
@@ -62,13 +60,13 @@ const api = {
     }
   },
 
-  // ✅ CORRIGIDO: NOTIFICAÇÕES com cleanup function
+  // NOTIFICAÇÕES com cleanup function
   notifications: {
     onNotification: (callback: (notification: any) => void) => {
       const handler = (event: any, notification: any) => callback(notification);
       ipcRenderer.on('pdv:notification', handler);
       
-      // ✅ RETORNA FUNÇÃO DE CLEANUP
+      // RETORNA FUNÇÃO DE CLEANUP
       return () => {
         ipcRenderer.removeListener('pdv:notification', handler);
       };
@@ -78,14 +76,14 @@ const api = {
     }
   },
 
-  // ✅ CORRIGIDO: API com cleanup function
+  // API com cleanup function
   api: {
     getStatus: () => ipcRenderer.invoke('api:getStatus'),
     onStatusUpdate: (callback: (status: any) => void) => {
       const handler = (event: any, status: any) => callback(status);
       ipcRenderer.on('api:status-update', handler);
       
-      // ✅ RETORNA FUNÇÃO DE CLEANUP
+      // RETORNA FUNÇÃO DE CLEANUP
       return () => {
         ipcRenderer.removeListener('api:status-update', handler);
       };

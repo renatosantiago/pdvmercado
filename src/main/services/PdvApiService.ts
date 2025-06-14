@@ -5,9 +5,9 @@ import type { Product, Sale } from '../types/NetworkTypes';
 export class PdvApiService {
   private httpApi: HttpApiService;
   private cache: LocalCacheService;
-  private isOnline: boolean = true;
   private syncInterval: NodeJS.Timeout | null = null;
   private caixaId: string;
+  public isOnline: boolean = true;
   
   constructor(caixaId: string, apiConfig: ApiConfig) {
     this.caixaId = caixaId;
@@ -123,7 +123,7 @@ export class PdvApiService {
     }
   }
   
-  async syncProducts(force: boolean = false): Promise<boolean> {
+  async syncProducts(force: boolean = true): Promise<boolean> {
     try {
       console.log('🔄 Iniciando sincronização de produtos...');
       
@@ -185,6 +185,43 @@ export class PdvApiService {
       console.error('❌ Erro na sincronização de vendas:', error);
     }
   }
+
+    async checkApiHealth(): Promise<boolean> {
+        try {
+            console.log('🏥 Verificando saúde da API Spring Boot...');
+
+            // Fazer requisição para endpoint de health da API Spring Boot
+            const response = await this.httpApi.get<any>('/actuator/health');
+
+            if (response.status && response.status === 'UP') {
+                console.log('✅ API Spring Boot está online');
+                this.isOnline = true;
+                return true;
+            } else {
+                console.log('❌ API Spring Boot offline ou com problemas');
+                this.isOnline = false;
+                return false;
+            }
+        } catch (error) {
+            console.log('❌ Erro ao verificar API Spring Boot:', error);
+            this.isOnline = false;
+            return false;
+        }
+    }
+
+    async getStatus(): Promise<any> {
+        const cacheStats = await this.cache.getCacheStats();
+        
+        return {
+            caixa_id: this.caixaId,
+            is_online: this.isOnline,
+            api_available: this.isOnline,
+            cache: cacheStats,
+            last_sync: cacheStats.ultima_sync,
+            pending_sales: cacheStats.vendas_pendentes || 0,
+            last_health_check: new Date().toISOString() // ✅ NOVO: timestamp da última verificação
+        };
+    }
   
   private startAutoSync(): void {
     // Sincronizar a cada 5 minutos
@@ -201,19 +238,6 @@ export class PdvApiService {
     const success = await this.syncProducts(true);
     await this.syncPendingSales();
     return success;
-  }
-  
-  async getStatus(): Promise<any> {
-    const cacheStats = await this.cache.getCacheStats();
-    
-    return {
-      caixa_id: this.caixaId,
-      is_online: this.isOnline,
-      api_available: this.isOnline,
-      cache: cacheStats,
-      last_sync: cacheStats.ultima_sync,
-      pending_sales: cacheStats.vendas_pendentes || 0
-    };
   }
   
   async searchProducts(termo: string): Promise<Product[]> {

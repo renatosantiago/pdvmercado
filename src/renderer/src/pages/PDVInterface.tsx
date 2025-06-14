@@ -21,12 +21,12 @@ const PDVInterface: React.FC = () => {
   const [success, setSuccess] = useState<string>('');
   const [subtotal, setSubtotal] = useState<number>(0);
 
-  // ✅ NOVO: Estados para modais customizados
+  // Estados para modais customizados
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [confirmMessage, setConfirmMessage] = useState<string>('');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
-  // ✅ NOVO: Ref para o input do código
+  // Ref para o input do código
   const codigoInputRef = useRef<HTMLInputElement>(null);
 
   // Hook do Electron
@@ -36,7 +36,7 @@ const PDVInterface: React.FC = () => {
   const totalGeral: number = items.reduce((sum: number, item: Item) => sum + item.total, 0);
   const valorUnitarioAtual: number = items.length > 0 ? items[items.length - 1].vlrUnit : 0;
 
-  // ✅ NOVO: Função para focar no input de código de forma robusta
+  // Função para focar no input de código de forma robusta
   const focusCodigoInput = (delay: number = 100): void => {
     setTimeout(() => {
       // Método 1: Usar ref (preferencial)
@@ -77,7 +77,7 @@ const PDVInterface: React.FC = () => {
     }, delay);
   };
 
-  // ✅ NOVO: Modal de confirmação customizado (substitui confirm())
+  // Modal de confirmação customizado (substitui confirm())
   const showCustomConfirm = (message: string, onConfirm: () => void): void => {
     setConfirmMessage(message);
     setPendingAction(() => onConfirm);
@@ -94,11 +94,11 @@ const PDVInterface: React.FC = () => {
     setPendingAction(null);
     setConfirmMessage('');
     
-    // ✅ CORRIGIDO: Focar imediatamente após fechar modal
+    // Focar imediatamente após fechar modal
     focusCodigoInput(50);
   };
 
-  // ✅ NOVO: Função para mostrar notificações (substitui alert())
+  // Função para mostrar notificações (substitui alert())
   const showNotification = (message: string, type: 'success' | 'error' = 'success'): void => {
     if (type === 'success') {
       setSuccess(message);
@@ -192,14 +192,14 @@ const PDVInterface: React.FC = () => {
       limparCampos();
       showNotification(`Produto "${produto.descricao}" adicionado com sucesso!`, 'success');
       
-      // ✅ CORRIGIDO: Focar no campo código após adicionar
+      // Focar no campo código após adicionar
       focusCodigoInput(100);
       
     } catch (error: any) {
       showNotification(error.message, 'error');
       setCodigoAtual('');
       
-      // ✅ CORRIGIDO: Focar no campo código após erro
+      // Focar no campo código após erro
       focusCodigoInput(100);
     } finally {
       setLoading(false);
@@ -233,7 +233,7 @@ const PDVInterface: React.FC = () => {
     addItemByCodigo(codigoAtual, quantidadeAtual);
   };
 
-  // ✅ CORRIGIDO: Finalizar venda sem bloqueio de foco
+  // Finalizar venda sem bloqueio de foco
   const finalizarVenda = async (): Promise<void> => {
     if (items.length === 0) {
       showNotification('Não há itens para finalizar a venda!', 'error');
@@ -252,7 +252,7 @@ const PDVInterface: React.FC = () => {
       `${index + 1}. ${item.descricao} - Qtd: ${item.qtde} - ${formatCurrency(item.total)}`
     ).join('\n')}\n\nTOTAL: ${formatCurrency(totalGeral)}`;
     
-    // ✅ CORRIGIDO: Usar modal customizado em vez de confirm()
+    // Usar modal customizado em vez de confirm()
     showCustomConfirm(
       `${resumo}\n\nConfirma a finalização da venda?`,
       async () => {
@@ -278,7 +278,7 @@ const PDVInterface: React.FC = () => {
     );
   };
 
-  // ✅ CORRIGIDO: Cancelar item sem bloqueio de foco
+  // Cancelar item sem bloqueio de foco
   const cancelarItem = (): void => {
     if (items.length > 0) {
       const ultimoItem = items[items.length - 1];
@@ -297,7 +297,7 @@ const PDVInterface: React.FC = () => {
     }
   };
 
-  // ✅ CORRIGIDO: Cancelar venda sem bloqueio de foco
+  // Cancelar venda sem bloqueio de foco
   const cancelarVenda = (): void => {
     if (items.length > 0) {
       const formatCurrency = (value: number): string => {
@@ -332,7 +332,7 @@ const PDVInterface: React.FC = () => {
     if (!isConnected) {
       console.log('🌐 Modo web - usando atalhos do DOM');
       const handleKeyPress = (e: KeyboardEvent): void => {
-        // ✅ NOVO: Ignorar se modal estiver aberto
+        // Ignorar se modal estiver aberto
         if (showConfirmModal) return;
         
         if (e.key === 'F1') {
@@ -371,7 +371,7 @@ const PDVInterface: React.FC = () => {
     }
   }, [isConnected, codigoAtual, quantidadeAtual, items, showConfirmModal]);
 
-  // ✅ NOVO: Auto-foco inicial e quando componente monta
+  // Auto-foco inicial e quando componente monta
   useEffect(() => {
     focusCodigoInput(500); // Foco inicial
   }, []);
@@ -433,7 +433,7 @@ const PDVInterface: React.FC = () => {
             onCodigoKeyPress={handleCodigoKeyPress}
             onQuantidadeChange={handleQuantidadeChange}
             onQuantidadeKeyPress={handleQuantidadeKeyPress}
-            // ✅ NOVO: Passar ref para o componente filho
+            // Passar ref para o componente filho
             codigoInputRef={codigoInputRef}
           />
         </div>
@@ -447,7 +447,7 @@ const PDVInterface: React.FC = () => {
           isListening={isConnected}
         />
 
-        {/* ✅ NOVO: Notificações customizadas */}
+        {/* Notificações customizadas */}
         {(error || success) && (
           <div className="fixed top-4 right-4 z-50">
             {error && (
@@ -463,7 +463,7 @@ const PDVInterface: React.FC = () => {
           </div>
         )}
 
-        {/* ✅ NOVO: Modal de confirmação customizado */}
+        {/* Modal de confirmação customizado */}
         {showConfirmModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">

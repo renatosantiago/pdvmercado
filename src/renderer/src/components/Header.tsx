@@ -11,6 +11,7 @@ interface ApiStatus {
     ultima_sync: string | null;
   };
   pending_sales: number;
+  last_health_check?: string;
 }
 
 interface HeaderProps {
@@ -30,7 +31,7 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
     minute: '2-digit'
   });
 
-  // ✅ ATUALIZADO: Buscar status da API
+  // Buscar status da API
   useEffect(() => {
     if (isConnected && typeof window !== 'undefined' && (window as any).electronAPI?.api) {
       const fetchApiStatus = async () => {
@@ -65,7 +66,7 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
     return 'PDV Cliente'; // Fallback padrão
   };
 
-  // ✅ ATUALIZADO: Status de conexão com API
+  // Status de conexão com API
   const getConnectionStatus = () => {
     if (!isConnected) {
       return {
@@ -74,24 +75,51 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
       };
     }
 
+    // Verificar se a API está online com base no health check
     if (apiStatus?.is_online && apiStatus?.api_available) {
       return {
-        label: '🟢 API Online',
+        label: '🟢',
         className: 'bg-green-500 text-white px-2 py-1 rounded text-xs'
       };
     }
 
+    // API offline detectada pelo health check
     if (apiStatus && !apiStatus.is_online) {
       return {
-        label: '🔄 Cache Offline',
-        className: 'bg-orange-500 text-white px-2 py-1 rounded text-xs'
+        label: '🔴',
+        className: 'bg-red-500 text-white px-2 py-1 rounded text-xs animate-pulse'
       };
     }
 
+    // Fallback para status desconhecido
     return {
-      label: '🔗 Conectado',
+      label: '🔗 Conectando...',
       className: 'bg-blue-500 text-white px-2 py-1 rounded text-xs'
     };
+  };
+
+  // Calcular tempo desde último health check
+  const getLastHealthCheckInfo = (): string | null => {
+    if (!apiStatus?.last_health_check) {
+      return null;
+    }
+
+    const lastCheck = new Date(apiStatus.last_health_check);
+    const now = new Date();
+    const diffMs = now.getTime() - lastCheck.getTime();
+    const diffSeconds = Math.floor(diffMs / 1000);
+
+    if (diffSeconds < 60) {
+      return `Health: ${diffSeconds}s atrás`;
+    } else if (diffSeconds < 3600) {
+      const diffMinutes = Math.floor(diffSeconds / 60);
+      return `Health: ${diffMinutes}min atrás`;
+    } else {
+      return `Health: ${lastCheck.toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })}`;
+    }
   };
 
   const connectionStatus = getConnectionStatus();
@@ -105,7 +133,14 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
           {connectionStatus.label}
         </span>
 
-        {/* ✅ NOVO: Vendas pendentes */}
+        {/* Mostrar informações de health check */}
+        {apiStatus?.last_health_check && (
+          <span className="text-xs opacity-75">
+            {getLastHealthCheckInfo()}
+          </span>
+        )}
+
+        {/* Vendas pendentes */}
         {(apiStatus?.pending_sales ?? 0) > 0 && (
           <span className="bg-red-500 text-white px-2 py-1 rounded text-xs animate-pulse">
             ⏳ {apiStatus?.pending_sales ?? 0} pendente{(apiStatus?.pending_sales ?? 0) > 1 ? 's' : ''}
@@ -120,7 +155,7 @@ const Header: React.FC<HeaderProps> = ({ isConnected, isListening = false }) => 
       </div>
 
       <div className="flex items-center space-x-4">
-        {/* ✅ NOVO: Última sincronização */}
+        {/* Última sincronização */}
         {apiStatus?.cache?.ultima_sync && (
           <span className="text-xs opacity-75">
             Sync: {new Date(apiStatus.cache.ultima_sync).toLocaleTimeString('pt-BR', { 

@@ -15,6 +15,7 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
   timestamp: string;
+  status?: string;
 }
 
 export class HttpApiService {
