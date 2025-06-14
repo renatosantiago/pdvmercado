@@ -1,15 +1,20 @@
 import { PdvApiService } from './PdvApiService';
 import type { Product } from '../types/NetworkTypes';
+import { LogService } from './LogService';
+
 
 export class ProductService {
   private apiService: PdvApiService;
+  private logger: LogService;
 
   constructor(apiService: PdvApiService) {
     this.apiService = apiService;
+    this.logger = LogService.getInstance();
   }
 
   async findByCode(codigo: string): Promise<Product> {
     if (!codigo || typeof codigo !== 'string') {
+      this.logger.error('PRODUCT_SERVICE', 'Codigo invalido fornecido', { codigo });
       throw new Error('Código é obrigatório e deve ser uma string');
     }
 
@@ -17,12 +22,13 @@ export class ProductService {
       const produto = await this.apiService.findProductByCode(codigo.trim());
       
       if (!produto) {
-        throw new Error(`Produto com código "${codigo}" não encontrado`);
+        this.logger.warn('PRODUCT_SERVICE', `Produto nao encontrado: ${codigo}`);
+        throw new Error(`Produto com codigo "${codigo}" nao encontrado`);
       }
 
       return produto;
     } catch (error: any) {
-      console.error('Erro no ProductService.findByCode:', error);
+      this.logger.error('PRODUCT_SERVICE', `Erro ao buscar produto ${codigo}`, error);
       throw new Error(error.message || 'Erro ao buscar produto');
     }
   }
@@ -47,10 +53,12 @@ export class ProductService {
 
   async createSale(vendaData: { items: any[] }): Promise<any> {
     if (!vendaData || !vendaData.items || !Array.isArray(vendaData.items)) {
-      throw new Error('Dados da venda inválidos - items é obrigatório');
+      this.logger.error('PRODUCT_SERVICE', 'Dados de venda invalidos', vendaData);
+      throw new Error('Dados da venda invalidos - items eh obrigatorio');
     }
 
     if (vendaData.items.length === 0) {
+      this.logger.error('PRODUCT_SERVICE', 'Tentativa de venda sem itens');
       throw new Error('Venda deve conter pelo menos um item');
     }
 
@@ -58,29 +66,32 @@ export class ProductService {
       // Validar itens
       for (const item of vendaData.items) {
         if (!item.codigo || !item.quantidade || !item.preco_unitario) {
-          throw new Error('Item inválido - código, quantidade e preço são obrigatórios');
+          this.logger.error('PRODUCT_SERVICE', 'Item invalido na venda', item);
+          throw new Error('Item invalido - codigo, quantidade e preço sao obrigatorios');
         }
 
         // Verificar se produto existe no cache
         const produto = await this.findByCode(item.codigo);
         if (!produto) {
+          this.logger.error('PRODUCT_SERVICE', `Produto inexistente na venda: ${item.codigo}`);
           throw new Error(`Produto ${item.codigo} não encontrado`);
         }
 
         // Verificar estoque
         if (produto.estoque < item.quantidade) {
-          throw new Error(`Estoque insuficiente para ${produto.descricao}. Disponível: ${produto.estoque}`);
+          this.logger.warn('PRODUCT_SERVICE', `Estoque insuficiente para produto ${item.codigo}`)
+          throw new Error(`Estoque insuficiente para ${produto.descricao}. Disponivel: ${produto.estoque}`);
         }
       }
 
       // Criar venda via API
       const venda = await this.apiService.createSale(vendaData);
       
-      console.log('✅ Venda criada via ProductService:', venda.id);
+       this.logger.logVenda(venda.id, venda.total, vendaData.items);
       return venda;
 
     } catch (error: any) {
-      console.error('Erro no ProductService.createSale:', error);
+      this.logger.error('PRODUCT_SERVICE', 'Erro ao criar venda')
       throw new Error(error.message || 'Erro ao criar venda');
     }
   }

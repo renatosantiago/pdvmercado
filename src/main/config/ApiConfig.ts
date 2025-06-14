@@ -39,7 +39,7 @@ export class ApiConfig {
     };
 
     // Tentar carregar do .env.pdv
-    const envPath = path.join(process.cwd(), '.env.pdv');
+    const envPath = path.join(process.cwd(), '.env');
     
     if (fs.existsSync(envPath)) {
       try {

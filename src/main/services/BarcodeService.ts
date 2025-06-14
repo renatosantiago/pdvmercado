@@ -3,10 +3,12 @@
 // ================================
 
 import { BrowserWindow } from 'electron';
+import { LogService } from './LogService';
 
 export class BarcodeService {
   private mainWindow: BrowserWindow | null;
   private isListening: boolean = false;
+  private logger: LogService;
   private barcodeBuffer: string = '';
   private lastKeyTime: number = 0;
   private readonly BARCODE_TIMEOUT = 100; // ms entre teclas do leitor
@@ -15,10 +17,11 @@ export class BarcodeService {
 
   constructor(mainWindow: BrowserWindow | null) {
     this.mainWindow = mainWindow;
+    this.logger = LogService.getInstance();
   }
 
   async initialize(): Promise<void> {
-    console.log('🔧 Inicializando serviço de código de barras...');
+    this.logger.info('BARCODE_SERVICE', 'Inicializando serviço de codigo de barras...');
     
     // Verificar se há leitores USB conectados (implementação opcional)
     // await this.detectUSBReaders();
@@ -26,7 +29,7 @@ export class BarcodeService {
     // Por enquanto, usar captura de teclado global para leitores HID
     this.setupKeyboardCapture();
     
-    console.log('✅ Serviço de código de barras inicializado');
+    this.logger.info('BARCODE_SERVICE', 'Servico de codigo de barras inicializado');
   }
 
   private setupKeyboardCapture(): void {
@@ -70,7 +73,7 @@ export class BarcodeService {
     
     // Validar tamanho mínimo
     if (codigo.length >= this.MIN_BARCODE_LENGTH) {
-      console.log(`📷 Código escaneado: ${codigo}`);
+      this.logger.logBarcode(codigo, true);
       
       // Enviar para o renderer process
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -84,7 +87,7 @@ export class BarcodeService {
 
   async startListening(): Promise<void> {
     this.isListening = true;
-    console.log('👂 Escutando códigos de barras...');
+    this.logger.info('BARCODE_SERVICE', 'Iniciando escuta de codigos de barras');
     
     // Notificar renderer que está escutando
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -95,7 +98,7 @@ export class BarcodeService {
   async stopListening(): Promise<void> {
     this.isListening = false;
     this.barcodeBuffer = '';
-    console.log('🔇 Parou de escutar códigos de barras');
+    this.logger.info('BARCODE_SERVICE', 'Parou de escutar codigos de barras');
     
     // Notificar renderer
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {

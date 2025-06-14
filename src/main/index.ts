@@ -8,9 +8,10 @@ import { PdvApiService } from './services/PdvApiService'
 import { ApiConfig } from './config/ApiConfig'
 import { ProductService } from './services/ProductService'
 import { BarcodeService } from './services/BarcodeService'
-import type { PDVNotification } from './types/NetworkTypes'
+import { LogService, setupEnhancedLogging } from './services/LogService'
 
 // SERVIÇOS PDV COM API
+let logger: LogService;
 let pdvApiService: PdvApiService;
 let apiConfig: ApiConfig;
 let productService: ProductService;
@@ -78,7 +79,8 @@ function createWindow(): void {
 // INICIALIZAR SERVIÇOS COM API
 async function initializePDVServices(): Promise<void> {
   try {
-    console.log('🚀 Inicializando serviços PDV com API...');
+    logger = setupEnhancedLogging('CAIXA-LOCAL-TESTE'); // ou pegar do config
+    logger.info('STARTUP', '🚀 Inicializando servicos PDV...');
     
     // Inicializar configuração da API
     apiConfig = ApiConfig.getInstance();
@@ -86,8 +88,9 @@ async function initializePDVServices(): Promise<void> {
     // Criar arquivo de configuração se não existir
     try {
       apiConfig.createConfigFile();
+      logger.debug('CONFIG', 'Arquivo de configuracao verificado');
     } catch (error) {
-      console.log('ℹ️ Arquivo de configuração já existe');
+      logger.debug('CONFIG', 'Arquivo de configuracao ja existe');
     }
     
     // Mostrar configuração atual
@@ -102,6 +105,8 @@ async function initializePDVServices(): Promise<void> {
     });
     
     await pdvApiService.initialize();
+    logger.info('API', 'Servico API inicializado com sucesso');
+    logger.info('PRODUCTS', 'Servico de produtos inicializado');
     
     // Inicializar serviço de produtos
     productService = new ProductService(pdvApiService);
@@ -110,9 +115,9 @@ async function initializePDVServices(): Promise<void> {
     try {
       barcodeService = new BarcodeService(mainWindow);
       await barcodeService.initialize();
-      console.log('✅ Leitor de código de barras conectado');
+      logger.info('BARCODE', 'Leitor de codigo de barras conectado');
     } catch (error) {
-      console.log('⚠️  Leitor de código de barras não encontrado - modo manual ativo');
+      logger.warn('BARCODE', 'Leitor de codigo de barras nao encontrado - modo manual ativo', error);
     }
     
     // Enviar status inicial para o renderer
@@ -120,9 +125,9 @@ async function initializePDVServices(): Promise<void> {
       sendStatusUpdate();
     }, 2000);
     
-    console.log('✅ Serviços PDV com API inicializados com sucesso');
+    logger.info('STARTUP', '✅ Servicos PDV inicializados com sucesso');
   } catch (error) {
-    console.error('❌ Erro ao inicializar serviços PDV:', error);
+    logger.fatal('STARTUP', 'Erro critico ao inicializar servicos PDV', error);
     throw error;
   }
 }
@@ -147,7 +152,7 @@ function setupPDVHandlers(): void {
         data: produto
       };
     } catch (error: any) {
-      console.error('Erro ao buscar produto:', error);
+      logger.error('PRODUCT_SEARCH', `Erro ao buscar produto ${codigo}`, error);
       return {
         success: false,
         error: error.message
@@ -200,7 +205,7 @@ function setupPDVHandlers(): void {
         data: venda
       };
     } catch (error: any) {
-      console.error('Erro ao criar venda:', error);
+      logger.error('SALE', 'Erro ao criar venda', { error: error.message, vendaData });
       return {
         success: false,
         error: error.message
@@ -257,6 +262,50 @@ function setupPDVHandlers(): void {
         };
       }
     } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+   // ✅ NOVO HANDLER PARA LOGS
+  ipcMain.handle('logs:export', async (event, filters) => {
+    try {
+      logger.info('LOG_EXPORT', 'Exportando logs', filters);
+      
+      const startDate = filters.startDate ? new Date(filters.startDate) : undefined;
+      const endDate = filters.endDate ? new Date(filters.endDate) : undefined;
+      
+      const logs = logger.exportLogs(startDate, endDate);
+      
+      return {
+        success: true,
+        data: {
+          logs,
+          count: logs.length,
+          exported_at: new Date().toISOString()
+        }
+      };
+    } catch (error: any) {
+      logger.error('LOG_EXPORT', 'Erro ao exportar logs', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // ✅ HANDLER PARA ESTATÍSTICAS DE LOGS
+  ipcMain.handle('logs:stats', async () => {
+    try {
+      const stats = logger.getLogStats();
+      return {
+        success: true,
+        data: stats
+      };
+    } catch (error: any) {
+      logger.error('LOG_STATS', 'Erro ao obter estatisticas de logs', error);
       return {
         success: false,
         error: error.message
@@ -346,7 +395,42 @@ function setupPDVShortcuts(): void {
     }
   });
 
-  console.log('✅ Atalhos PDV configurados (F1-F5, Ctrl+I, Ctrl+C)');
+   // ✅ ATALHO PARA ABRIR LOGS (F12)
+  globalShortcut.register('F12', () => {
+    logger.info('SHORTCUT', 'Abrindo visualizador de logs');
+    
+    // Enviar comando para abrir modal de logs no renderer
+    mainWindow?.webContents.send('pdv:open-logs');
+  });
+
+  // ✅ ATALHO PARA EXPORTAR LOGS (Ctrl+L)
+  globalShortcut.register('CommandOrControl+L', async () => {
+    try {
+      logger.info('LOG_EXPORT', 'Exportacoo de logs iniciada via atalho');
+      
+      const logs = logger.exportLogs();
+      const exportPath = path.join(app.getPath('desktop'), `pdv-logs-${new Date().toISOString().slice(0,10)}.json`);
+      
+      require('fs').writeFileSync(exportPath, JSON.stringify(logs, null, 2));
+      
+      logger.info('LOG_EXPORT', `Logs exportados para: ${exportPath}`);
+      
+      mainWindow?.webContents.send('pdv:notification', {
+        type: 'success',
+        message: `Logs exportados para Desktop: pdv-logs-${new Date().toISOString().slice(0,10)}.json`,
+        duration: 5000
+      });
+    } catch (error: any) {
+      logger.error('LOG_EXPORT', 'Erro ao exportar logs via atalho', error);
+      
+      mainWindow?.webContents.send('pdv:notification', {
+        type: 'error',
+        message: 'Erro ao exportar logs'
+      });
+    }
+  });
+
+  logger.info('SHORTCUTS', 'Atalhos PDV configurados (F1-F5, F12, Ctrl+L)');
 }
 
 function setupPDVAutomation(): void {
@@ -369,7 +453,7 @@ function setupPDVAutomation(): void {
     }
   });
 
-  console.log('✅ Automação PDV com Health Check configurada');
+  logger.info('SETUP','✅ Automação PDV com Health Check configurada');
 }
 
 function startHealthCheckTimer(): void {
@@ -379,7 +463,7 @@ function startHealthCheckTimer(): void {
     healthCheckTimer = null;
   }
 
-  console.log('🏥 Iniciando health check automático (a cada 1 minuto)...');
+  logger.info('startHealthCheckTimer','🏥 Iniciando health check automático (a cada 1 minuto)...');
 
   // Executar primeira verificação imediatamente
   performHealthCheck();
@@ -389,27 +473,31 @@ function startHealthCheckTimer(): void {
     performHealthCheck();
   }, 60000); // 1 minuto
 
-  console.log('✅ Health check timer configurado');
+  logger.info('startHealthCheckTimer','✅ Health check timer configurado');
 }
 
 // Executar health check
 async function performHealthCheck(): Promise<void> {
   try {
     if (!pdvApiService) {
-      console.log('⚠️ PDV API Service não inicializado para health check');
+      logger.warn('HEALTH_CHECK', 'PDV API Service nao inicializado');
       return;
     }
 
     // Executar verificação de saúde da API
     const isHealthy = await pdvApiService.checkApiHealth();
     
-    console.log(`🏥 Health Check resultado: ${isHealthy ? 'API ONLINE' : 'API OFFLINE'}`);
+    if (isHealthy) {
+      logger.debug('HEALTH_CHECK', 'API esta online e funcionando');
+    } else {
+      logger.warn('HEALTH_CHECK', 'API esta offline ou com problemas');
+    }
 
     // Enviar atualização de status para o renderer
     sendStatusUpdate();
 
-  } catch (error) {
-    console.error('❌ Erro no health check automático:', error);
+  } catch (error: any) {
+    logger.error('HEALTH_CHECK', 'Erro no health check automatico', error);
     
     // Em caso de erro, marcar como offline
     if (pdvApiService) {
@@ -492,7 +580,11 @@ app.on('window-all-closed', async () => {
 
 // TRATAMENTO DE ERROS GLOBAIS (mantido)
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  logger.fatal('UNCAUGHT_EXCEPTION', 'Excecao nao capturada', {
+    message: error.message,
+    stack: error.stack,
+    name: error.name
+  });
   
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('pdv:error', {
@@ -503,7 +595,7 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('❌ Unhandled Rejection:', reason);
+  logger.fatal('UNHANDLED_REJECTION', 'Promise rejeitada nao tratada', reason);
   
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('pdv:error', {
