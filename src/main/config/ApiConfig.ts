@@ -39,7 +39,7 @@ export class ApiConfig {
     };
 
     // Tentar carregar do .env.pdv
-    const envPath = path.join(process.cwd(), '.env');
+    const envPath = path.join('C:/PDV-Caixa', '.env.pdv');
     
     if (fs.existsSync(envPath)) {
       try {
@@ -128,7 +128,7 @@ PDV_SYNC_INTERVAL=${this.config.syncInterval}
 # PDV_SYNC_INTERVAL=120000
 `;
 
-    const configPath = path.join(process.cwd(), '.env.pdv');
+    const configPath = path.join('C:/PDV-Caixa', '.env.pdv');
     fs.writeFileSync(configPath, configContent, 'utf8');
     console.log(`📁 Arquivo de configuração API criado: ${configPath}`);
   }
