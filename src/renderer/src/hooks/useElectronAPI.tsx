@@ -44,7 +44,7 @@ interface ApiStatus {
 
 type ShortcutKey = 'F1' | 'F2' | 'F3' | 'F4' | 'F5' | 'ESC';
 
-// ✅ HOOK CORRIGIDO PARA USAR FUNÇÕES DE CLEANUP
+// HOOK PARA USAR FUNÇÕES DE CLEANUP
 export const useElectronAPI = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [apiStatus, setApiStatus] = useState<ApiStatus | null>(null);
@@ -57,12 +57,12 @@ export const useElectronAPI = () => {
       // Inicia listener do código de barras
       (window as any).electronAPI.barcode.listen();
       
-      // ✅ CORRIGIDO: Usar função de cleanup retornada
+      // Usar função de cleanup retornada
       const removeStatusListener = (window as any).electronAPI.api.onStatusUpdate((status: ApiStatus) => {
         setApiStatus(status);
       });
       
-      // ✅ CORRIGIDO: Cleanup usando a função retornada
+      // Cleanup usando a função retornada
       return () => {
         (window as any).electronAPI.barcode.removeListener();
         if (removeStatusListener && typeof removeStatusListener === 'function') {
@@ -210,7 +210,7 @@ export const useElectronAPI = () => {
     }
   };
 
-  // ✅ CORRIGIDO: onBarcodeScanned com cleanup
+  // onBarcodeScanned com cleanup
   const onBarcodeScanned = (callback: (codigo: string) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       return (window as any).electronAPI.barcode.onScanned(callback);
@@ -218,7 +218,7 @@ export const useElectronAPI = () => {
     return () => {}; // Retorna função vazia se não conectado
   };
 
-  // ✅ CORRIGIDO: onShortcut com cleanup
+  // onShortcut com cleanup
   const onShortcut = (callback: (key: string) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.shortcuts) {
       return (window as any).electronAPI.shortcuts.onShortcut(callback);
@@ -226,7 +226,7 @@ export const useElectronAPI = () => {
     return () => {}; // Retorna função vazia se não conectado
   };
 
-  // ✅ CORRIGIDO: onNotification com cleanup
+  // onNotification com cleanup
   const onNotification = (callback: (notification: any) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.notifications) {
       return (window as any).electronAPI.notifications.onNotification(callback);

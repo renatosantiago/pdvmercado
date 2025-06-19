@@ -21,7 +21,7 @@ export interface LogEntry {
   user_id?: string;
 }
 
-// ✅ ARMAZENAR REFERÊNCIAS ORIGINAIS GLOBALMENTE
+// ARMAZENAR REFERÊNCIAS ORIGINAIS GLOBALMENTE
 const originalConsole = {
   log: console.log.bind(console),
   error: console.error.bind(console),
@@ -47,7 +47,7 @@ export class LogService {
       this.currentLogFile = path.join(this.logDir, `pdv-${caixaId.toLowerCase()}-${this.getDateString()}.log`);
       this.ensureLogDirectory();
     } catch (error) {
-      // ✅ USAR CONSOLE ORIGINAL EM CASO DE ERRO DE INICIALIZAÇÃO
+      // USAR CONSOLE ORIGINAL EM CASO DE ERRO DE INICIALIZAÇÃO
       originalConsole.error('❌ Erro ao inicializar LogService:', error);
       
       // Fallback para pasta temporária
@@ -70,7 +70,7 @@ export class LogService {
         fs.mkdirSync(this.logDir, { recursive: true });
       }
     } catch (error) {
-      // ✅ USAR CONSOLE ORIGINAL PARA EVITAR RECURSÃO
+      // USAR CONSOLE ORIGINAL PARA EVITAR RECURSÃO
       originalConsole.error('❌ Erro ao criar diretório de logs:', error);
     }
   }
@@ -86,7 +86,7 @@ export class LogService {
   }
 
   private writeToFile(logEntry: LogEntry): void {
-    // ✅ PREVENIR RECURSÃO DURANTE ESCRITA
+    // PREVENIR RECURSÃO DURANTE ESCRITA
     if (this.isWriting) {
       return;
     }
@@ -105,7 +105,7 @@ export class LogService {
 
       fs.appendFileSync(this.currentLogFile, logString);
     } catch (error) {
-      // ✅ USAR CONSOLE ORIGINAL PARA EVITAR RECURSÃO
+      // USAR CONSOLE ORIGINAL PARA EVITAR RECURSÃO
       originalConsole.error('❌ Erro ao escrever log (usando console original):', error);
     } finally {
       this.isWriting = false;
@@ -160,10 +160,10 @@ export class LogService {
       caixa_id: this.caixaId
     };
 
-    // ✅ ESCREVER NO ARQUIVO SEM INTERCEPTAÇÃO
+    // ESCREVER NO ARQUIVO SEM INTERCEPTAÇÃO
     this.writeToFile(entry);
 
-    // ✅ MOSTRAR NO CONSOLE ORIGINAL PARA DESENVOLVIMENTO
+    // MOSTRAR NO CONSOLE ORIGINAL PARA DESENVOLVIMENTO
     const levelName = LogLevel[level];
     const logMethod = level >= LogLevel.ERROR ? originalConsole.error : 
                      level >= LogLevel.WARN ? originalConsole.warn : 
@@ -300,11 +300,11 @@ export class LogService {
   }
 }
 
-// ✅ VERSÃO SEGURA DA INTEGRAÇÃO COM CONSOLE
+// VERSÃO SEGURA DA INTEGRAÇÃO COM CONSOLE
 export function setupEnhancedLogging(caixaId: string): LogService {
   const logger = LogService.getInstance(caixaId);
 
-  // ✅ INTERCEPTAÇÃO SEGURA - SEM RECURSÃO
+  // INTERCEPTAÇÃO SEGURA - SEM RECURSÃO
   console.log = (...args) => {
     try {
       // Evitar interceptar logs do próprio LogService
@@ -322,14 +322,14 @@ export function setupEnhancedLogging(caixaId: string): LogService {
   console.error = (...args) => {
     try {
       const message = args.join(' ');
-      // ✅ EVITAR RECURSÃO: Não interceptar erros do próprio LogService
+      // EVITAR RECURSÃO: Não interceptar erros do próprio LogService
       if (!message.includes('LogService') && 
           !message.includes('❌ Erro ao escrever log') &&
           !message.includes('Erro ao exibir log')) {
         logger.error('CONSOLE', message);
       }
     } catch (error) {
-      // ✅ FALHA SILENCIOSA PARA EVITAR LOOPS
+      // FALHA SILENCIOSA PARA EVITAR LOOPS
       originalConsole.error('Erro na interceptação (usando original):', error);
     }
     originalConsole.error(...args);
@@ -359,7 +359,7 @@ export function setupEnhancedLogging(caixaId: string): LogService {
     originalConsole.info(...args);
   };
 
-  // ✅ CAPTURAR ERROS NÃO TRATADOS COM SEGURANÇA
+  // CAPTURAR ERROS NÃO TRATADOS COM SEGURANÇA
   process.on('uncaughtException', (error) => {
     try {
       logger.fatal('UNCAUGHT_EXCEPTION', error.message, {
