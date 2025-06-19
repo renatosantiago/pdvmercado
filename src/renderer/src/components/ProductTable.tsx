@@ -27,26 +27,26 @@ const ProductTable: React.FC<ProductTableProps> = ({ items, isConnected }) => {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Items Table */}
-      <div className="bg-gray-50 rounded-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-400px)]">
+      <div className="bg-gray-50 rounded-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-335px)]">
         {/* Table Header - Fixed */}
         <div className="bg-gray-200 flex-shrink-0">
           <table className="w-full table-fixed">
             <thead>
               <tr>
-                <th className="text-left p-3 font-semibold text-sm w-16">ITEM</th>
-                <th className="text-left p-3 font-semibold text-sm w-32">CÓDIGO</th>
-                <th className="text-left p-3 font-semibold text-sm">DESCRIÇÃO</th>
-                <th className="text-center p-3 font-semibold text-sm w-20">QTDE.</th>
-                <th className="text-right p-3 font-semibold text-sm w-28">VLR. UNIT.</th>
-                <th className="text-right p-3 font-semibold text-sm w-28">TOTAL</th>
+                <th className="text-left p-3 font-semibold text-sm w-1/12">ITEM</th>
+                <th className="text-left p-3 font-semibold text-sm w-1/6">CÓDIGO</th>
+                <th className="text-left p-3 font-semibold text-sm w-1/3">DESCRIÇÃO</th>
+                <th className="text-center p-3 font-semibold text-sm w-1/6">QTDE.</th>
+                <th className="text-right p-3 font-semibold text-sm w-1/6">VLR. UNIT.</th>
+                <th className="text-right p-3 font-semibold text-sm w-1/6">TOTAL</th>
               </tr>
             </thead>
           </table>
         </div>
         
         {/* Table Body - Scrollable */}
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full table-fixed">
+        <div className="flex-1 overflow-y-auto h-full">
+          <table className="w-full table-fixed h-full">
             <tbody>
               {items.map((item: Item, index: number) => (
                 <tr key={item.id} className="border-b border-gray-200 hover:bg-gray-100">
