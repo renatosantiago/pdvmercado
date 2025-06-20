@@ -46,16 +46,16 @@ const ProductTable: React.FC<ProductTableProps> = ({ items, isConnected }) => {
         
         {/* Table Body - Scrollable */}
         <div className="flex-1 overflow-y-auto h-full">
-          <table className="w-full table-fixed h-full">
+          <table className="w-full table-fixed">
             <tbody>
               {items.map((item: Item, index: number) => (
                 <tr key={item.id} className="border-b border-gray-200 hover:bg-gray-100">
-                  <td className="p-3 text-sm font-medium w-16">{index + 1}</td>
-                  <td className="p-3 text-sm w-32 truncate" title={item.codigo}>{item.codigo}</td>
-                  <td className="p-3 text-sm truncate" title={item.descricao}>{item.descricao}</td>
-                  <td className="p-3 text-sm text-center w-20">{item.qtde}</td>
-                  <td className="p-3 text-sm text-right w-28">{formatCurrency(item.vlrUnit)}</td>
-                  <td className="p-3 text-sm text-right font-medium w-28">{formatCurrency(item.total)}</td>
+                  <td className="p-3 text-sm font-medium w-1/12">{index + 1}</td>
+                  <td className="p-3 text-sm w-1/6 truncate" title={item.codigo}>{item.codigo}</td>
+                  <td className="p-3 text-sm truncate w-1/3" title={item.descricao}>{item.descricao}</td>
+                  <td className="p-3 text-sm text-center w-1/6">{item.qtde}</td>
+                  <td className="p-3 text-sm text-right w-1/6">{formatCurrency(item.vlrUnit)}</td>
+                  <td className="p-3 text-sm text-right font-medium w-1/6">{formatCurrency(item.total)}</td>
                 </tr>
               ))}
               {/* Espaço extra para quando há poucos itens */}

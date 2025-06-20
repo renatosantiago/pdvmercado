@@ -15,6 +15,7 @@ interface ProductFormProps {
   onCodigoKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onQuantidadeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onQuantidadeKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  quantidadeProduto: number;
   codigoInputRef?: RefObject<HTMLInputElement | null>;
 }
 
@@ -32,6 +33,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   onCodigoKeyPress,
   onQuantidadeChange,
   onQuantidadeKeyPress,
+  quantidadeProduto,
   codigoInputRef
 }) => {
   // Função para formatação de moeda
@@ -95,6 +97,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         </div>
         <div className="flex justify-between items-center text-lg">
           <span className="font-semibold">{formatCurrency(valorUnitarioAtual)}</span>
+          <span className="font-semibold">x {quantidadeProduto}</span>
           <span className="font-semibold">{formatCurrency(subtotal)}</span>
         </div>
       </div>

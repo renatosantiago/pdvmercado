@@ -9,8 +9,9 @@ import ProductDisplay from '../components/ProductDisplay';
 import FooterActions from '../components/FooterActions';
 
 // Importar tipos
-import { Item, ShortcutKey } from '../types';
+import { Item, ShortcutKey, Payment, AppScreen } from '../types';
 import { useElectronAPI } from '../hooks/useElectronAPI';
+import PaymentScreen from '../components/PaymentScreen';
 
 const PDVInterface: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
@@ -20,6 +21,11 @@ const PDVInterface: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [subtotal, setSubtotal] = useState<number>(0);
+  const [quantidadeProduto, setQuantidadeProduto] = useState<number>(1);
+  const [valorUnitario, setValorUnitario] = useState<number>(0);
+
+  const [currentScreen, setCurrentScreen] = useState<AppScreen>('PDV');
+
 
   // Estados para modais customizados
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
@@ -34,7 +40,7 @@ const PDVInterface: React.FC = () => {
 
   // Cálculos derivados
   const totalGeral: number = items.reduce((sum: number, item: Item) => sum + item.total, 0);
-  const valorUnitarioAtual: number = items.length > 0 ? items[items.length - 1].vlrUnit : 0;
+  // const valorUnitarioAtual: number = items.length > 0 ? items[items.length - 1].vlrUnit : 0;
 
   // Função para focar no input de código de forma robusta
   const focusCodigoInput = (delay: number = 100): void => {
@@ -95,7 +101,9 @@ const PDVInterface: React.FC = () => {
     setConfirmMessage('');
     
     // Focar imediatamente após fechar modal
-    focusCodigoInput(50);
+    if (currentScreen === 'PDV') {
+      focusCodigoInput(50);
+    }
   };
 
   // Função para mostrar notificações (substitui alert())
@@ -119,12 +127,13 @@ const PDVInterface: React.FC = () => {
   useEffect(() => {
     // Código de barras
     onBarcodeScanned((codigo: string) => {
-      console.log('Código escaneado:', codigo);
-      setCodigoAtual(codigo);
-      // Auto-adicionar produto quando código for escaneado
-      setTimeout(() => {
-        addItemByCodigo(codigo);
-      }, 100);
+      if (currentScreen === 'PDV') { // Só funciona na tela principal
+        console.log('Código escaneado:', codigo);
+        setCodigoAtual(codigo);
+        setTimeout(() => {
+          addItemByCodigo(codigo);
+        }, 100);
+      }
     });
 
     // Atalhos via IPC
@@ -186,7 +195,9 @@ const PDVInterface: React.FC = () => {
           produto_id: produto.id
         };
         setItems([...items, novoItem]);
+        setValorUnitario(novoItem.vlrUnit);
         setSubtotal(novoItem.total);
+        setQuantidadeProduto(quantidade);
       }
 
       limparCampos();
@@ -208,12 +219,18 @@ const PDVInterface: React.FC = () => {
 
   // Função para lidar com atalhos
   const handleShortcut = (key: ShortcutKey): void => {
+    // Se estiver na tela de pagamento, não processar atalhos do PDV
+    if (currentScreen === 'PAYMENT') {
+      return;
+    }
+
     switch (key) {
       case 'F1':
         addItem();
         break;
       case 'F2':
-        finalizarVenda();
+        // ✅ MODIFICADO: Ir para tela de pagamento em vez de finalizar direto
+        irParaTelaPagamento();
         break;
       case 'F3':
         cancelarItem();
@@ -228,54 +245,67 @@ const PDVInterface: React.FC = () => {
     }
   };
 
-  // Funções de ação
-  const addItem = (): void => {
-    addItemByCodigo(codigoAtual, quantidadeAtual);
-  };
-
-  // Finalizar venda sem bloqueio de foco
-  const finalizarVenda = async (): Promise<void> => {
+  // ✅ NOVO: Ir para tela de pagamento
+  const irParaTelaPagamento = (): void => {
     if (items.length === 0) {
       showNotification('Não há itens para finalizar a venda!', 'error');
       focusCodigoInput();
       return;
     }
 
-    const formatCurrency = (value: number): string => {
-      return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }).format(value);
-    };
+    setCurrentScreen('PAYMENT');
+  };
 
-    const resumo = `RESUMO DA VENDA:\n${items.map((item, index) => 
-      `${index + 1}. ${item.descricao} - Qtd: ${item.qtde} - ${formatCurrency(item.total)}`
-    ).join('\n')}\n\nTOTAL: ${formatCurrency(totalGeral)}`;
-    
-    // Usar modal customizado em vez de confirm()
-    showCustomConfirm(
-      `${resumo}\n\nConfirma a finalização da venda?`,
-      async () => {
-        setLoading(true);
-        try {
-          const venda = await createSale(items);
-          
-          // Usar notificação em vez de alert()
-          showNotification(`Venda finalizada com sucesso! ID: ${venda.id}`, 'success');
-          
-        } catch (error: any) {
-          showNotification(`Erro ao finalizar venda: ${error.message}`, 'error');
-          focusCodigoInput(100);
-        } finally {
-          setItems([]);
-          limparCampos();
-          setSubtotal(0);
-          setLoading(false);
-          // Focar após operação completa
-          focusCodigoInput(200);
-        }
-      }
-    );
+  // ✅ NOVO: Voltar da tela de pagamento
+  const voltarTelaPrincipal = (): void => {
+    setCurrentScreen('PDV');
+    focusCodigoInput(200);
+  };
+
+  // ✅ NOVO: Finalizar venda com múltiplas formas de pagamento
+  const finalizarVendaComPagamentos = async (payments: Payment[]): Promise<void> => {
+    setLoading(true);
+    try {
+      // Criar venda com formas de pagamento
+      const venda = await createSale(items);
+      
+      // Limpar venda atual
+      setItems([]);
+      limparCampos();
+      setSubtotal(0);
+      
+      // Voltar para tela principal
+      setCurrentScreen('PDV');
+      
+      // Mostrar confirmação
+      const formasPagamento = payments.map(p => {
+        const tipos = {
+          'DINHEIRO': 'Dinheiro',
+          'CARTAO_CREDITO': 'Cartão Crédito',
+          'CARTAO_DEBITO': 'Cartão Débito',
+          'PIX': 'PIX',
+          'OUTROS': 'Outros'
+        };
+        return `${tipos[p.tipo]}: R$ ${p.valor.toFixed(2)}`;
+      }).join(', ');
+
+      showNotification(
+        `Venda finalizada! ID: ${venda.id} | ${formasPagamento}`, 
+        'success'
+      );
+      
+      focusCodigoInput(200);
+      
+    } catch (error: any) {
+      showNotification(`Erro ao finalizar venda: ${error.message}`, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funções de ação
+  const addItem = (): void => {
+    addItemByCodigo(codigoAtual, quantidadeAtual);
   };
 
   // Cancelar item sem bloqueio de foco
@@ -287,6 +317,9 @@ const PDVInterface: React.FC = () => {
         `Deseja remover o item "${ultimoItem.descricao}"?`,
         () => {
           setItems(items.slice(0, -1));
+          setValorUnitario(0);
+          setSubtotal(0);
+          setQuantidadeProduto(1);
           showNotification('Item removido com sucesso!', 'success');
           focusCodigoInput();
         }
@@ -311,7 +344,9 @@ const PDVInterface: React.FC = () => {
         `Deseja cancelar toda a venda? Total: ${formatCurrency(totalGeral)}`,
         () => {
           setItems([]);
-          limparCampos();
+          setValorUnitario(0);
+          setSubtotal(0);
+          setQuantidadeProduto(1);
           showNotification('Venda cancelada com sucesso!', 'success');
           focusCodigoInput();
         }
@@ -373,8 +408,10 @@ const PDVInterface: React.FC = () => {
 
   // Auto-foco inicial e quando componente monta
   useEffect(() => {
-    focusCodigoInput(500); // Foco inicial
-  }, []);
+    if (currentScreen === 'PDV') {
+      focusCodigoInput(500);
+    }
+  }, [currentScreen]);
 
   // Handlers para o formulário
   const handleCodigoChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -399,6 +436,19 @@ const PDVInterface: React.FC = () => {
       addItem();
     }
   };
+
+   // ✅ RENDERIZAÇÃO CONDICIONAL BASEADA NA TELA ATUAL
+  if (currentScreen === 'PAYMENT') {
+    return (
+      <PaymentScreen
+        items={items}
+        totalVenda={totalGeral}
+        onPaymentComplete={finalizarVendaComPagamentos}
+        onCancel={voltarTelaPrincipal}
+        isConnected={isConnected}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -425,7 +475,7 @@ const PDVInterface: React.FC = () => {
             loading={loading}
             isConnected={isConnected}
             isListening={isConnected}
-            valorUnitarioAtual={valorUnitarioAtual}
+            valorUnitarioAtual={valorUnitario}
             subtotal={subtotal}
             totalGeral={totalGeral}
             itemsCount={items.length}
@@ -433,6 +483,7 @@ const PDVInterface: React.FC = () => {
             onCodigoKeyPress={handleCodigoKeyPress}
             onQuantidadeChange={handleQuantidadeChange}
             onQuantidadeKeyPress={handleQuantidadeKeyPress}
+            quantidadeProduto={quantidadeProduto}
             // Passar ref para o componente filho
             codigoInputRef={codigoInputRef}
           />

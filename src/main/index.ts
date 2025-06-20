@@ -378,7 +378,7 @@ function setupPDVShortcuts(): void {
   });
 
   // Atalho para estatísticas do cache (Ctrl+C)
-  globalShortcut.register('CommandOrControl+C', async () => {
+  globalShortcut.register('CommandOrControl+C', async () => { 
     try {
       const status = await productService.getStatus();
       const cache = status.cache;

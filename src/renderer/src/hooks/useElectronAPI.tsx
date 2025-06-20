@@ -1,6 +1,7 @@
+// src/renderer/src/hooks/useElectronAPI.tsx - ATUALIZADO
 import { useEffect, useState } from "react";
 
-// Interfaces TypeScript (mantidas iguais)
+// Interfaces TypeScript
 interface Product {
   id: number;
   codigo: string;
@@ -22,11 +23,26 @@ interface Item {
   produto_id?: number;
 }
 
+interface Payment {
+  id: number;
+  tipo: 'DINHEIRO' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO' | 'PIX' | 'OUTROS';
+  valor: number;
+  timestamp: string;
+}
+
 interface Sale {
   id: number;
   total: number;
   data_venda: string;
   items: any[];
+  payments?: Payment[]; // ✅ ATUALIZADO: incluir pagamentos
+}
+
+interface SaleData {
+  items: Item[];
+  payments?: Payment[]; // ✅ NOVO: formas de pagamento
+  total: number;
+  subtotal: number;
 }
 
 interface ApiStatus {
@@ -44,25 +60,20 @@ interface ApiStatus {
 
 type ShortcutKey = 'F1' | 'F2' | 'F3' | 'F4' | 'F5' | 'ESC';
 
-// HOOK PARA USAR FUNÇÕES DE CLEANUP
 export const useElectronAPI = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [apiStatus, setApiStatus] = useState<ApiStatus | null>(null);
 
   useEffect(() => {
-    // Verifica se está rodando no Electron
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       setIsConnected(true);
       
-      // Inicia listener do código de barras
       (window as any).electronAPI.barcode.listen();
       
-      // Usar função de cleanup retornada
       const removeStatusListener = (window as any).electronAPI.api.onStatusUpdate((status: ApiStatus) => {
         setApiStatus(status);
       });
       
-      // Cleanup usando a função retornada
       return () => {
         (window as any).electronAPI.barcode.removeListener();
         if (removeStatusListener && typeof removeStatusListener === 'function') {
@@ -74,7 +85,7 @@ export const useElectronAPI = () => {
 
   const findProductByCode = async (codigo: string): Promise<Product | null> => {
     if (typeof window === 'undefined' || !(window as any).electronAPI) {
-      // Fallback para desenvolvimento web (mantido igual)
+      // Fallback para desenvolvimento web
       const produtosFallback: { [key: string]: Omit<Product, 'id' | 'estoque' | 'ativo' | 'created_at' | 'updated_at'> } = {
         '37658990198': { codigo: '37658990198', descricao: 'Macarrão Romanha 500G', preco: 4.87 },
         '88769022': { codigo: '88769022', descricao: 'Arroz Tio João 5kg', preco: 27.90 },
@@ -112,7 +123,7 @@ export const useElectronAPI = () => {
 
   const searchProducts = async (termo: string): Promise<Product[]> => {
     if (typeof window === 'undefined' || !(window as any).electronAPI) {
-      return []; // Fallback vazio para modo web
+      return [];
     }
 
     const response = await (window as any).electronAPI.product.search(termo);
@@ -124,8 +135,9 @@ export const useElectronAPI = () => {
     return response.data || [];
   };
 
-  const createSale = async (items: Item[]): Promise<Sale> => {
-    console.log('🛒 Criando venda via API...', items);
+  // ✅ ATUALIZADO: createSale agora suporta múltiplas formas de pagamento
+  const createSale = async (items: Item[], payments?: Payment[]): Promise<Sale> => {
+    console.log('🛒 Criando venda via API...', { items, payments });
     
     // Fallback garantido para modo web
     const fallbackSale = (): Sale => ({
@@ -136,7 +148,8 @@ export const useElectronAPI = () => {
         codigo: item.codigo,
         quantidade: item.qtde,
         preco_unitario: item.vlrUnit
-      }))
+      })),
+      payments: payments || []
     });
 
     if (typeof window === 'undefined') {
@@ -155,14 +168,20 @@ export const useElectronAPI = () => {
       return fallbackSale();
     }
 
-    // Usar a API do Electron
     try {
+      // ✅ ATUALIZADO: Incluir formas de pagamento na requisição
       const vendaData = {
         items: items.map(item => ({
           codigo: item.codigo,
           quantidade: item.qtde,
           preco_unitario: item.vlrUnit
-        }))
+        })),
+        payments: payments || [], // ✅ NOVO: incluir formas de pagamento
+        total: items.reduce((sum, item) => sum + item.total, 0),
+        subtotal: items.reduce((sum, item) => sum + item.total, 0),
+        // Determinar forma de pagamento principal para compatibilidade
+        forma_pagamento: payments && payments.length > 0 ? 
+          getMainPaymentMethod(payments) : 'DINHEIRO'
       };
 
       console.log('📤 Enviando venda para API:', vendaData);
@@ -170,7 +189,10 @@ export const useElectronAPI = () => {
       console.log('📥 Resposta da API:', response);
       
       if (response.success) {
-        return response.data;
+        return {
+          ...response.data,
+          payments: payments || []
+        };
       } else {
         console.error('Erro na API:', response.error);
         throw new Error(response.error);
@@ -179,6 +201,23 @@ export const useElectronAPI = () => {
       console.error('Erro ao comunicar com API:', error);
       throw error;
     }
+  };
+
+  // ✅ NOVO: Função para determinar forma de pagamento principal
+  const getMainPaymentMethod = (payments: Payment[]): string => {
+    if (!payments || payments.length === 0) return 'DINHEIRO';
+    
+    // Se há apenas uma forma de pagamento, usar ela
+    if (payments.length === 1) {
+      return payments[0].tipo;
+    }
+    
+    // Se há múltiplas, encontrar a de maior valor
+    const mainPayment = payments.reduce((max, current) => 
+      current.valor > max.valor ? current : max
+    );
+    
+    return mainPayment.tipo;
   };
 
   const syncCache = async (): Promise<boolean> => {
@@ -210,28 +249,25 @@ export const useElectronAPI = () => {
     }
   };
 
-  // onBarcodeScanned com cleanup
   const onBarcodeScanned = (callback: (codigo: string) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI) {
       return (window as any).electronAPI.barcode.onScanned(callback);
     }
-    return () => {}; // Retorna função vazia se não conectado
+    return () => {};
   };
 
-  // onShortcut com cleanup
   const onShortcut = (callback: (key: string) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.shortcuts) {
       return (window as any).electronAPI.shortcuts.onShortcut(callback);
     }
-    return () => {}; // Retorna função vazia se não conectado
+    return () => {};
   };
 
-  // onNotification com cleanup
   const onNotification = (callback: (notification: any) => void) => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.notifications) {
       return (window as any).electronAPI.notifications.onNotification(callback);
     }
-    return () => {}; // Retorna função vazia se não conectado
+    return () => {};
   };
 
   return {
@@ -239,7 +275,7 @@ export const useElectronAPI = () => {
     apiStatus,
     findProductByCode,
     searchProducts,
-    createSale,
+    createSale, // ✅ ATUALIZADO: agora suporta pagamentos
     syncCache,
     getApiStatus,
     onBarcodeScanned,
