@@ -40,6 +40,7 @@ const PDVInterface: React.FC = () => {
 
   // Cálculos derivados
   const totalGeral: number = items.reduce((sum: number, item: Item) => sum + item.total, 0);
+  const quantidadeItens: number = items.reduce((sum: number, item: Item) => sum + item.qtde, 0);
   // const valorUnitarioAtual: number = items.length > 0 ? items[items.length - 1].vlrUnit : 0;
 
   // Função para focar no input de código de forma robusta
@@ -273,6 +274,8 @@ const PDVInterface: React.FC = () => {
       setItems([]);
       limparCampos();
       setSubtotal(0);
+      setValorUnitario(0);
+      setQuantidadeProduto(1);
       
       // Voltar para tela principal
       setCurrentScreen('PDV');
@@ -478,7 +481,7 @@ const PDVInterface: React.FC = () => {
             valorUnitarioAtual={valorUnitario}
             subtotal={subtotal}
             totalGeral={totalGeral}
-            itemsCount={items.length}
+            itemsCount={quantidadeItens}
             onCodigoChange={handleCodigoChange}
             onCodigoKeyPress={handleCodigoKeyPress}
             onQuantidadeChange={handleQuantidadeChange}

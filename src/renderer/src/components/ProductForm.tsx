@@ -45,7 +45,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   };
 
   return (
-    <div className="w-80 space-y-6 flex flex-col flex-shrink-0">
+    <div className="w-1/3 space-y-6 flex flex-col flex-shrink-0">
       {/* Code Input */}
       <div className="bg-gray-50 p-4 rounded-lg">
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -81,7 +81,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           value={quantidadeAtual}
           onChange={onQuantidadeChange}
           onKeyPress={onQuantidadeKeyPress}
-          className={`w-full p-3 border rounded-lg text-center text-lg ${
+          className={`w-full p-3 border rounded-lg text-center text-2xl ${
             loading ? 'bg-gray-200' : 'border-gray-300'
           }`}
           min="1"
@@ -96,9 +96,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
           <span className="text-sm">Subtotal</span>
         </div>
         <div className="flex justify-between items-center text-lg">
-          <span className="font-semibold">{formatCurrency(valorUnitarioAtual)}</span>
+          <span className="font-semibold text-2xl">{formatCurrency(valorUnitarioAtual)}</span>
           <span className="font-semibold">x {quantidadeProduto}</span>
-          <span className="font-semibold">{formatCurrency(subtotal)}</span>
+          <span className="font-semibold text-2xl">{formatCurrency(subtotal)}</span>
         </div>
       </div>
 

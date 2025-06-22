@@ -223,7 +223,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                 </div>
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total:</span>
-                  <span>{formatCurrency(totalVenda)}</span>
+                  <span className='text-2xl'>{formatCurrency(totalVenda)}</span>
                 </div>
               </div>
             </div>
@@ -234,15 +234,15 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span>Total da Venda:</span>
-                  <span className="font-semibold">{formatCurrency(totalVenda)}</span>
+                  <span className="font-semibold text-3xl">{formatCurrency(totalVenda)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Valor Pago:</span>
-                  <span className="font-semibold text-green-600">{formatCurrency(totalPago)}</span>
+                  <span className="text-3xl font-semibold text-green-600">{formatCurrency(totalPago)}</span>
                 </div>
                 <div className="flex justify-between text-lg">
                   <span>Restante:</span>
-                  <span className={`font-bold ${restante > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  <span className={`font-bold text-3xl ${restante > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {formatCurrency(restante)}
                   </span>
                 </div>
@@ -275,13 +275,13 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                       setCurrentPaymentType(tipo);
                       focusValueInput();
                     }}
-                    className={`p-3 rounded text-sm font-medium transition-colors ${
+                    className={`p-3 rounded text-2xl font-medium transition-colors ${
                       currentPaymentType === tipo
                         ? 'bg-blue-500 text-white'
                         : 'bg-white border hover:bg-gray-100'
                     }`}
                   >
-                    <div>{label}</div>
+                    <div className='text-2xl'>{label}</div>
                     <div className="text-xs opacity-75">({key})</div>
                   </button>
                 ))}
