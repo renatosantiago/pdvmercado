@@ -318,49 +318,6 @@ function setupPDVHandlers(): void {
 
 // ATALHOS COM SINCRONIZAÇÃO DE CACHE
 function setupPDVShortcuts(): void {
-  // Atalhos específicos do PDV
-  globalShortcut.register('F1', () => {
-    mainWindow?.webContents.send('pdv:shortcut', 'F1');
-  });
-
-  globalShortcut.register('F2', () => {
-    mainWindow?.webContents.send('pdv:shortcut', 'F2');
-  });
-
-  globalShortcut.register('F3', () => {
-    mainWindow?.webContents.send('pdv:shortcut', 'F3');
-  });
-
-  globalShortcut.register('F4', () => {
-    mainWindow?.webContents.send('pdv:shortcut', 'F4');
-  });
-
-  globalShortcut.register('Escape', () => {
-    mainWindow?.webContents.send('pdv:shortcut', 'ESC');
-  });
-
-  // Atalho para sincronização de cache (F5)
-  globalShortcut.register('F5', async () => {
-    try {
-      console.log('🔄 Sincronização manual de cache (F5)...');
-      const success = await productService.forceSync();
-      
-      mainWindow?.webContents.send('pdv:notification', {
-        type: success ? 'success' : 'warning',
-        message: success ? 'Cache atualizado com sucesso!' : 'Erro na sincronização do cache',
-        duration: 3000
-      });
-      
-      if (success) {
-        sendStatusUpdate();
-      }
-    } catch (error) {
-      mainWindow?.webContents.send('pdv:notification', {
-        type: 'error',
-        message: 'Erro na sincronização do cache'
-      });
-    }
-  });
 
   // Atalho para mostrar status (inclui cache)
   globalShortcut.register('CommandOrControl+I', async () => {

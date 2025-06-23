@@ -1,6 +1,8 @@
-// src/renderer/src/components/PaymentScreen.tsx
+// src/renderer/src/components/PaymentScreen.tsx - COM ATALHOS LOCAIS
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Check, X } from 'lucide-react';
+import { usePaymentShortcuts } from '../hooks/useShortcuts'; // ✅ NOVO: usar hook de atalhos
 
 interface Item {
   id: number;
@@ -27,6 +29,73 @@ interface PaymentScreenProps {
   isConnected: boolean;
 }
 
+// Converter valor para centavos (elimina problemas de ponto flutuante)
+const toCents = (value: number): number => {
+  return Math.round(value * 100);
+};
+
+// Converter centavos para valor decimal
+const fromCents = (cents: number): number => {
+  return cents / 100;
+};
+
+// Somar valores monetários com precisão
+const addMoney = (...values: number[]): number => {
+  const totalCents = values.reduce((sum, value) => sum + toCents(value), 0);
+  return fromCents(totalCents);
+};
+
+// Subtrair valores monetários com precisão
+const subtractMoney = (a: number, b: number): number => {
+  return fromCents(toCents(a) - toCents(b));
+};
+
+// Comparar valores monetários com tolerância
+const isEqual = (a: number, b: number): boolean => {
+  return Math.abs(toCents(a) - toCents(b)) <= 1; // Tolerância de 1 centavo
+};
+
+const isGreaterThan = (a: number, b: number): boolean => {
+  return toCents(a) > toCents(b);
+};
+
+const isLessOrEqual = (a: number, b: number): boolean => {
+  return toCents(a) <= toCents(b);
+};
+
+// Arredondar para 2 casas decimais
+const roundMoney = (value: number): number => {
+  return fromCents(toCents(value));
+};
+
+// Parse de string para valor monetário com validação
+const parseMoneyValue = (value: string): number => {
+  if (!value || typeof value !== 'string') return 0;
+  
+  // Remover espaços e caracteres especiais, manter apenas números, vírgula e ponto
+  let cleanValue = value.replace(/[^\d,.-]/g, '');
+  
+  // Se não há números, retornar 0
+  if (!/\d/.test(cleanValue)) return 0;
+  
+  // Tratar casos com vírgula como separador decimal (padrão brasileiro)
+  if (cleanValue.includes(',')) {
+    // Se há vírgula e ponto, assumir que ponto é separador de milhares
+    if (cleanValue.includes('.') && cleanValue.indexOf(',') > cleanValue.lastIndexOf('.')) {
+      cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    } else {
+      // Apenas vírgula como separador decimal
+      cleanValue = cleanValue.replace(',', '.');
+    }
+  }
+  
+  const parsed = parseFloat(cleanValue);
+  if (isNaN(parsed) || parsed < 0) return 0;
+  
+  // Limitar a 2 casas decimais
+  return roundMoney(parsed);
+};
+
 const PaymentScreen: React.FC<PaymentScreenProps> = ({
   items,
   totalVenda,
@@ -41,61 +110,67 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
   
   const valueInputRef = useRef<HTMLInputElement>(null);
 
-  // Calcular valores
-  const totalPago = payments.reduce((sum, payment) => sum + payment.valor, 0);
-  const restante = totalVenda - totalPago;
-  const isComplete = restante <= 0;
+  // Arredondar total da venda para evitar problemas
+  const totalVendaRounded = roundMoney(totalVenda);
+  
+  // Calcular total pago com precisão
+  const totalPago = payments.length > 0 
+    ? addMoney(...payments.map(p => p.valor))
+    : 0;
+  
+  // Calcular restante com precisão
+  const restante = subtractMoney(totalVendaRounded, totalPago);
+  
+  // Verificar se pagamento está completo
+  const isComplete = isLessOrEqual(restante, 0);
+
+  // ✅ CONFIGURAR ATALHOS ESPECÍFICOS PARA TELA DE PAGAMENTO
+  const { getShortcutsList } = usePaymentShortcuts({
+    addPayment: () => {
+      if (isComplete && !showConfirmModal) {
+        handleFinalizeSale();
+      } else {
+        handleAddPayment();
+      }
+    },
+    finalizeSale: handleFinalizeSale,
+    cancel: () => {
+      if (showConfirmModal) {
+        setShowConfirmModal(false);
+      } else {
+        onCancel();
+      }
+    },
+    selectDinheiro: () => {
+      setCurrentPaymentType('DINHEIRO');
+      focusValueInput();
+    },
+    selectCartaoCredito: () => {
+      setCurrentPaymentType('CARTAO_CREDITO');
+      focusValueInput();
+    },
+    selectCartaoDebito: () => {
+      setCurrentPaymentType('CARTAO_DEBITO');
+      focusValueInput();
+    },
+    selectPix: () => {
+      setCurrentPaymentType('PIX');
+      focusValueInput();
+    },
+    selectOutros: () => {
+      setCurrentPaymentType('OUTROS');
+      focusValueInput();
+    }
+  }, {
+    enabled: true, // Habilitar atalhos
+    ignoreInputs: true, // Ignorar atalhos quando inputs estão focados
+    allowedInputs: ['payment-value-input'] // Exceto o input de valor
+  });
 
   // Foco no input ao montar
   useEffect(() => {
-    if (valueInputRef.current) {
-      valueInputRef.current.focus();
-    }
+    focusValueInput();
   }, []);
-
-  // Atalhos de teclado
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (showConfirmModal) {
-          setShowConfirmModal(false);
-        } else {
-          onCancel();
-        }
-      } else if (e.key === 'F6') {
-        e.preventDefault();
-        setCurrentPaymentType('DINHEIRO');
-        focusValueInput();
-      } else if (e.key === 'F7') {
-        e.preventDefault();
-        setCurrentPaymentType('CARTAO_CREDITO');
-        focusValueInput();
-      } else if (e.key === 'F8') {
-        e.preventDefault();
-        setCurrentPaymentType('CARTAO_DEBITO');
-        focusValueInput();
-      } else if (e.key === 'F9') {
-        e.preventDefault();
-        setCurrentPaymentType('PIX');
-        focusValueInput();
-      } else if (e.key === 'F10') {
-        e.preventDefault();
-        setCurrentPaymentType('OUTROS');
-        focusValueInput();
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (isComplete && !showConfirmModal) {
-          handleFinalizeSale();
-        } else {
-          handleAddPayment();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [currentPaymentValue, isComplete, showConfirmModal]);
 
   const focusValueInput = () => {
     setTimeout(() => {
@@ -107,10 +182,13 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
   };
 
   const formatCurrency = (value: number): string => {
+    const rounded = roundMoney(value);
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
-    }).format(value);
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(rounded);
   };
 
   const parseValue = (value: string): number => {
@@ -119,7 +197,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
   };
 
   const handleAddPayment = () => {
-    const valor = parseValue(currentPaymentValue);
+    const valor = parseMoneyValue(currentPaymentValue);
     
     if (valor <= 0) {
       alert('Valor deve ser maior que zero!');
@@ -127,7 +205,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
       return;
     }
 
-    if (valor > restante) {
+    if (isGreaterThan(valor, restante)) {
       alert(`Valor não pode ser maior que o restante: ${formatCurrency(restante)}`);
       focusValueInput();
       return;
@@ -136,7 +214,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
     const newPayment: Payment = {
       id: Date.now(),
       tipo: currentPaymentType,
-      valor,
+      valor: roundMoney(valor), // Garantir arredondamento
       timestamp: new Date().toISOString()
     };
 
@@ -151,19 +229,19 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
   };
 
   const handleAutoComplete = () => {
-    if (restante > 0) {
+    if (isGreaterThan(restante, 0)) {
       setCurrentPaymentValue(restante.toFixed(2).replace('.', ','));
       focusValueInput();
     }
   };
 
-  const handleFinalizeSale = () => {
+  function handleFinalizeSale() {
     if (!isComplete) {
       alert('Venda ainda não foi totalmente paga!');
       return;
     }
     setShowConfirmModal(true);
-  };
+  }
 
   const confirmFinalizeSale = () => {
     onPaymentComplete(payments);
@@ -189,6 +267,13 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
       'OUTROS': 'bg-gray-100 text-gray-800'
     };
     return colors[tipo];
+  };
+
+  const handleValueInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Permitir apenas números, vírgula e ponto
+    const filteredValue = value.replace(/[^0-9,.]/g, '');
+    setCurrentPaymentValue(filteredValue);
   };
 
   return (
@@ -263,11 +348,11 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
               {/* Seleção de Forma de Pagamento */}
               <div className="grid grid-cols-5 gap-2 mb-4">
                 {[
-                  { tipo: 'DINHEIRO' as const, label: 'Dinheiro', key: 'Ctrl+F6' },
-                  { tipo: 'CARTAO_CREDITO' as const, label: 'Cartão Créd.', key: 'Ctrl+F7' },
-                  { tipo: 'CARTAO_DEBITO' as const, label: 'Cartão Déb.', key: 'Ctrl+F8' },
-                  { tipo: 'PIX' as const, label: 'PIX', key: 'Ctrl+F9' },
-                  { tipo: 'OUTROS' as const, label: 'Outros', key: 'Ctrl+F10' }
+                  { tipo: 'DINHEIRO' as const, label: 'Dinheiro', key: 'F6' },
+                  { tipo: 'CARTAO_CREDITO' as const, label: 'Cartão Créd.', key: 'F7' },
+                  { tipo: 'CARTAO_DEBITO' as const, label: 'Cartão Déb.', key: 'F8' },
+                  { tipo: 'PIX' as const, label: 'PIX', key: 'F9' },
+                  { tipo: 'OUTROS' as const, label: 'Outros', key: 'F10' }
                 ].map(({ tipo, label, key }) => (
                   <button
                     key={tipo}
@@ -294,12 +379,23 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     Valor ({getPaymentTypeLabel(currentPaymentType)})
                   </label>
                   <input
+                    id="payment-value-input" // ✅ ID para permitir atalhos
                     ref={valueInputRef}
                     type="text"
                     value={currentPaymentValue}
-                    onChange={(e) => setCurrentPaymentValue(e.target.value)}
+                    onChange={handleValueInputChange}
                     className="w-full p-3 border rounded-lg text-lg text-center"
                     placeholder="0,00"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (isComplete && !showConfirmModal) {
+                          handleFinalizeSale();
+                        } else {
+                          handleAddPayment();
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -352,11 +448,11 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
           </div>
         </div>
 
-        {/* Footer com Ações */}
+        {/* Footer com Ações - ATUALIZADO COM NOVOS ATALHOS */}
         <div className="bg-gray-100 p-4 border-t">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
-              <span><strong>Ctrl+F6 - Ctrl+F10</strong> Formas Pagamento | <strong>Enter</strong> {isComplete ? 'Finalizar' : 'Adicionar'} | <strong>ESC</strong> Cancelar</span>
+              <span><strong>F6-F10</strong> Formas Pagamento | <strong>Enter</strong> {isComplete ? 'Finalizar' : 'Adicionar'} | <strong>ESC</strong> Cancelar</span>
             </div>
             <div className="flex space-x-3">
               <button

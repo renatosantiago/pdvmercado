@@ -1,4 +1,5 @@
-// src/renderer/src/hooks/useElectronAPI.tsx - ATUALIZADO
+// src/renderer/src/hooks/useElectronAPI.tsx - ATUALIZADO COM syncCache
+
 import { useEffect, useState } from "react";
 
 // Interfaces TypeScript
@@ -35,12 +36,12 @@ interface Sale {
   total: number;
   data_venda: string;
   items: any[];
-  payments?: Payment[]; // ✅ ATUALIZADO: incluir pagamentos
+  payments?: Payment[];
 }
 
 interface SaleData {
   items: Item[];
-  payments?: Payment[]; // ✅ NOVO: formas de pagamento
+  payments?: Payment[];
   total: number;
   subtotal: number;
 }
@@ -135,7 +136,6 @@ export const useElectronAPI = () => {
     return response.data || [];
   };
 
-  // ✅ ATUALIZADO: createSale agora suporta múltiplas formas de pagamento
   const createSale = async (items: Item[], payments?: Payment[]): Promise<Sale> => {
     console.log('🛒 Criando venda via API...', { items, payments });
     
@@ -169,17 +169,15 @@ export const useElectronAPI = () => {
     }
 
     try {
-      // ✅ ATUALIZADO: Incluir formas de pagamento na requisição
       const vendaData = {
         items: items.map(item => ({
           codigo: item.codigo,
           quantidade: item.qtde,
           preco_unitario: item.vlrUnit
         })),
-        payments: payments || [], // ✅ NOVO: incluir formas de pagamento
+        payments: payments || [],
         total: items.reduce((sum, item) => sum + item.total, 0),
         subtotal: items.reduce((sum, item) => sum + item.total, 0),
-        // Determinar forma de pagamento principal para compatibilidade
         forma_pagamento: payments && payments.length > 0 ? 
           getMainPaymentMethod(payments) : 'DINHEIRO'
       };
@@ -203,16 +201,14 @@ export const useElectronAPI = () => {
     }
   };
 
-  // ✅ NOVO: Função para determinar forma de pagamento principal
+  // Função para determinar forma de pagamento principal
   const getMainPaymentMethod = (payments: Payment[]): string => {
     if (!payments || payments.length === 0) return 'DINHEIRO';
     
-    // Se há apenas uma forma de pagamento, usar ela
     if (payments.length === 1) {
       return payments[0].tipo;
     }
     
-    // Se há múltiplas, encontrar a de maior valor
     const mainPayment = payments.reduce((max, current) => 
       current.valor > max.valor ? current : max
     );
@@ -220,6 +216,7 @@ export const useElectronAPI = () => {
     return mainPayment.tipo;
   };
 
+  // ✅ NOVO: Função para sincronizar cache
   const syncCache = async (): Promise<boolean> => {
     if (typeof window === 'undefined' || !(window as any).electronAPI?.cache) {
       console.log('🌐 Cache sync não disponível no modo web');
@@ -227,10 +224,18 @@ export const useElectronAPI = () => {
     }
 
     try {
+      console.log('🔄 Iniciando sincronização de cache...');
       const response = await (window as any).electronAPI.cache.sync();
-      return response.success;
+      
+      if (response.success) {
+        console.log('✅ Cache sincronizado com sucesso');
+        return true;
+      } else {
+        console.error('❌ Erro na sincronização:', response.error);
+        return false;
+      }
     } catch (error) {
-      console.error('Erro ao sincronizar cache:', error);
+      console.error('❌ Erro ao sincronizar cache:', error);
       return false;
     }
   };
@@ -275,8 +280,8 @@ export const useElectronAPI = () => {
     apiStatus,
     findProductByCode,
     searchProducts,
-    createSale, // ✅ ATUALIZADO: agora suporta pagamentos
-    syncCache,
+    createSale,
+    syncCache, // ✅ NOVO: função de sincronização de cache
     getApiStatus,
     onBarcodeScanned,
     onShortcut,

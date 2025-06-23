@@ -1,4 +1,5 @@
-// src/renderer/src/components/PDVInterface.tsx
+// src/renderer/src/pages/PDVInterface.tsx - SISTEMA DE ATALHOS LOCAIS
+
 import React, { useState, useEffect, useRef } from 'react';
 
 // Importar componentes
@@ -26,7 +27,6 @@ const PDVInterface: React.FC = () => {
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('PDV');
 
-
   // Estados para modais customizados
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [confirmMessage, setConfirmMessage] = useState<string>('');
@@ -36,25 +36,30 @@ const PDVInterface: React.FC = () => {
   const codigoInputRef = useRef<HTMLInputElement>(null);
 
   // Hook do Electron
-  const { isConnected, findProductByCode, createSale, onBarcodeScanned, onShortcut, onNotification } = useElectronAPI();
+  const { 
+    isConnected, 
+    findProductByCode, 
+    createSale, 
+    syncCache, // ✅ NOVO: função para sincronizar cache
+    onBarcodeScanned, 
+    onShortcut, 
+    onNotification 
+  } = useElectronAPI();
 
   // Cálculos derivados
   const totalGeral: number = items.reduce((sum: number, item: Item) => sum + item.total, 0);
   const quantidadeItens: number = items.reduce((sum: number, item: Item) => sum + item.qtde, 0);
-  // const valorUnitarioAtual: number = items.length > 0 ? items[items.length - 1].vlrUnit : 0;
 
   // Função para focar no input de código de forma robusta
   const focusCodigoInput = (delay: number = 100): void => {
     setTimeout(() => {
-      // Método 1: Usar ref (preferencial)
       if (codigoInputRef.current) {
         codigoInputRef.current.focus();
-        codigoInputRef.current.select(); // Seleciona todo o texto
+        codigoInputRef.current.select();
         console.log('✅ Foco restaurado via ref');
         return;
       }
 
-      // Método 2: Fallback com ID específico
       const inputById = document.getElementById('codigo-input') as HTMLInputElement;
       if (inputById) {
         inputById.focus();
@@ -63,7 +68,6 @@ const PDVInterface: React.FC = () => {
         return;
       }
 
-      // Método 3: Fallback com seletor melhorado
       const inputByClass = document.querySelector('[data-testid="codigo-input"]') as HTMLInputElement;
       if (inputByClass) {
         inputByClass.focus();
@@ -72,7 +76,6 @@ const PDVInterface: React.FC = () => {
         return;
       }
 
-      // Método 4: Último recurso - seletor genérico
       const inputGeneric = document.querySelector('input[type="text"]:first-of-type') as HTMLInputElement;
       if (inputGeneric) {
         inputGeneric.focus();
@@ -84,7 +87,7 @@ const PDVInterface: React.FC = () => {
     }, delay);
   };
 
-  // Modal de confirmação customizado (substitui confirm())
+  // Modal de confirmação customizado
   const showCustomConfirm = (message: string, onConfirm: () => void): void => {
     setConfirmMessage(message);
     setPendingAction(() => onConfirm);
@@ -101,13 +104,12 @@ const PDVInterface: React.FC = () => {
     setPendingAction(null);
     setConfirmMessage('');
     
-    // Focar imediatamente após fechar modal
     if (currentScreen === 'PDV') {
       focusCodigoInput(50);
     }
   };
 
-  // Função para mostrar notificações (substitui alert())
+  // Função para mostrar notificações
   const showNotification = (message: string, type: 'success' | 'error' = 'success'): void => {
     if (type === 'success') {
       setSuccess(message);
@@ -117,30 +119,146 @@ const PDVInterface: React.FC = () => {
       setSuccess('');
     }
 
-    // Auto-limpar após 3 segundos
     setTimeout(() => {
       setError('');
       setSuccess('');
     }, 3000);
   };
 
-  // Listener para código de barras e atalhos
+  // ✅ NOVO: Função para sincronizar cache manualmente
+  const handleManualSync = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      console.log('🔄 Sincronização manual de cache iniciada...');
+      
+      const success = await syncCache();
+      
+      showNotification(
+        success ? 'Cache atualizado com sucesso!' : 'Erro na sincronização do cache',
+        success ? 'success' : 'error'
+      );
+    } catch (error) {
+      console.error('Erro na sincronização:', error);
+      showNotification('Erro na sincronização do cache', 'error');
+    } finally {
+      setLoading(false);
+      focusCodigoInput();
+    }
+  };
+
+  // ✅ SISTEMA DE ATALHOS LOCAIS APRIMORADO
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent): void => {
+      // Ignorar se modal estiver aberto ou não estiver na tela PDV
+      if (showConfirmModal || currentScreen !== 'PDV') return;
+      
+      // Ignorar se o foco estiver em um input específico (exceto o código)
+      const activeElement = document.activeElement as HTMLElement;
+      const isInputActive = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.contentEditable === 'true'
+      );
+
+      // Permitir atalhos mesmo com input de código ativo
+      const isCodigoInput = activeElement && (
+        activeElement.id === 'codigo-input' ||
+        activeElement.getAttribute('data-testid') === 'codigo-input'
+      );
+
+      // Se há input ativo (que não seja o código), só processar ESC
+      if (isInputActive && !isCodigoInput && e.key !== 'Escape') return;
+
+      switch (e.key) {
+        case 'F1':
+          e.preventDefault();
+          console.log('🔥 F1 - Adicionar item');
+          addItem();
+          break;
+
+        case 'F2':
+          e.preventDefault();
+          console.log('🔥 F2 - Ir para pagamento');
+          irParaTelaPagamento();
+          break;
+
+        case 'F3':
+          e.preventDefault();
+          console.log('🔥 F3 - Cancelar item');
+          cancelarItem();
+          break;
+
+        case 'F4':
+          e.preventDefault();
+          console.log('🔥 F4 - Cancelar venda');
+          cancelarVenda();
+          break;
+
+        case 'F5':
+          e.preventDefault();
+          console.log('🔥 F5 - Sincronizar cache');
+          handleManualSync();
+          break;
+
+        case 'Escape':
+          e.preventDefault();
+          console.log('🔥 ESC - Limpar campos');
+          if (showConfirmModal) {
+            handleConfirmModalClose(false);
+          } else {
+            limparCampos();
+            focusCodigoInput();
+          }
+          break;
+
+        // ✅ ATALHOS ADICIONAIS ÚTEIS
+        case 'F6':
+          e.preventDefault();
+          console.log('🔥 F6 - Focar código');
+          focusCodigoInput();
+          break;
+
+        case 'Delete':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            console.log('🔥 Ctrl+Del - Cancelar venda');
+            cancelarVenda();
+          }
+          break;
+
+        case 'Backspace':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            console.log('🔥 Ctrl+Backspace - Cancelar item');
+            cancelarItem();
+          }
+          break;
+      }
+    };
+
+    // ✅ ADICIONAR LISTENER PARA TELA PDV
+    if (currentScreen === 'PDV') {
+      console.log('🎹 Ativando atalhos locais para tela PDV');
+      document.addEventListener('keydown', handleKeyPress);
+      
+      return () => {
+        console.log('🎹 Removendo atalhos locais da tela PDV');
+        document.removeEventListener('keydown', handleKeyPress);
+      };
+    }
+  }, [currentScreen, showConfirmModal, codigoAtual, quantidadeAtual, items]);
+
+  // Listener para código de barras e notificações
   useEffect(() => {
     // Código de barras
     onBarcodeScanned((codigo: string) => {
-      if (currentScreen === 'PDV') { // Só funciona na tela principal
-        console.log('Código escaneado:', codigo);
+      if (currentScreen === 'PDV') {
+        console.log('📷 Código escaneado:', codigo);
         setCodigoAtual(codigo);
         setTimeout(() => {
           addItemByCodigo(codigo);
         }, 100);
       }
-    });
-
-    // Atalhos via IPC
-    const removeShortcutListener = onShortcut((key: string) => {
-      console.log('🔥 Atalho recebido:', key);
-      handleShortcut(key as ShortcutKey);
     });
 
     // Notificações do sistema
@@ -149,12 +267,10 @@ const PDVInterface: React.FC = () => {
       showNotification(notification.message, notification.type);
     });
 
-    // Cleanup
     return () => {
-      removeShortcutListener();
       removeNotificationListener();
     };
-  }, [onBarcodeScanned, onShortcut, onNotification]);
+  }, [onBarcodeScanned, onNotification, currentScreen]);
 
   // Função para adicionar item por código
   const addItemByCodigo = async (codigo: string, quantidade: number = quantidadeAtual): Promise<void> => {
@@ -170,11 +286,9 @@ const PDVInterface: React.FC = () => {
         throw new Error(`Produto com código "${codigo}" não encontrado`);
       }
 
-      // Verificar se o produto já existe na lista
       const itemExistente = items.find(item => item.codigo === codigo);
       
       if (itemExistente) {
-        // Se já existe, atualizar quantidade
         setItems(items.map(item => 
           item.codigo === codigo 
             ? { 
@@ -185,7 +299,6 @@ const PDVInterface: React.FC = () => {
             : item
         ));
       } else {
-        // Se não existe, adicionar novo item
         const novoItem: Item = {
           id: Date.now(),
           codigo: produto.codigo,
@@ -203,50 +316,18 @@ const PDVInterface: React.FC = () => {
 
       limparCampos();
       showNotification(`Produto "${produto.descricao}" adicionado com sucesso!`, 'success');
-      
-      // Focar no campo código após adicionar
       focusCodigoInput(100);
       
     } catch (error: any) {
       showNotification(error.message, 'error');
       setCodigoAtual('');
-      
-      // Focar no campo código após erro
       focusCodigoInput(100);
     } finally {
       setLoading(false);
     }
   };
 
-  // Função para lidar com atalhos
-  const handleShortcut = (key: ShortcutKey): void => {
-    // Se estiver na tela de pagamento, não processar atalhos do PDV
-    if (currentScreen === 'PAYMENT') {
-      return;
-    }
-
-    switch (key) {
-      case 'F1':
-        addItem();
-        break;
-      case 'F2':
-        // ✅ MODIFICADO: Ir para tela de pagamento em vez de finalizar direto
-        irParaTelaPagamento();
-        break;
-      case 'F3':
-        cancelarItem();
-        break;
-      case 'F4':
-        cancelarVenda();
-        break;
-      case 'ESC':
-        limparCampos();
-        focusCodigoInput();
-        break;
-    }
-  };
-
-  // ✅ NOVO: Ir para tela de pagamento
+  // Ir para tela de pagamento
   const irParaTelaPagamento = (): void => {
     if (items.length === 0) {
       showNotification('Não há itens para finalizar a venda!', 'error');
@@ -257,30 +338,26 @@ const PDVInterface: React.FC = () => {
     setCurrentScreen('PAYMENT');
   };
 
-  // ✅ NOVO: Voltar da tela de pagamento
+  // Voltar da tela de pagamento
   const voltarTelaPrincipal = (): void => {
     setCurrentScreen('PDV');
     focusCodigoInput(200);
   };
 
-  // ✅ NOVO: Finalizar venda com múltiplas formas de pagamento
+  // Finalizar venda com múltiplas formas de pagamento
   const finalizarVendaComPagamentos = async (payments: Payment[]): Promise<void> => {
     setLoading(true);
     try {
-      // Criar venda com formas de pagamento
       const venda = await createSale(items);
       
-      // Limpar venda atual
       setItems([]);
       limparCampos();
       setSubtotal(0);
       setValorUnitario(0);
       setQuantidadeProduto(1);
       
-      // Voltar para tela principal
       setCurrentScreen('PDV');
       
-      // Mostrar confirmação
       const formasPagamento = payments.map(p => {
         const tipos = {
           'DINHEIRO': 'Dinheiro',
@@ -311,7 +388,6 @@ const PDVInterface: React.FC = () => {
     addItemByCodigo(codigoAtual, quantidadeAtual);
   };
 
-  // Cancelar item sem bloqueio de foco
   const cancelarItem = (): void => {
     if (items.length > 0) {
       const ultimoItem = items[items.length - 1];
@@ -333,7 +409,6 @@ const PDVInterface: React.FC = () => {
     }
   };
 
-  // Cancelar venda sem bloqueio de foco
   const cancelarVenda = (): void => {
     if (items.length > 0) {
       const formatCurrency = (value: number): string => {
@@ -365,51 +440,7 @@ const PDVInterface: React.FC = () => {
     setQuantidadeAtual(1);
   };
 
-  // Event listener para teclas de atalho (fallback para modo web)
-  useEffect(() => {
-    if (!isConnected) {
-      console.log('🌐 Modo web - usando atalhos do DOM');
-      const handleKeyPress = (e: KeyboardEvent): void => {
-        // Ignorar se modal estiver aberto
-        if (showConfirmModal) return;
-        
-        if (e.key === 'F1') {
-          e.preventDefault();
-          console.log('🔥 F1 pressionado (DOM)');
-          handleShortcut('F1');
-        } else if (e.key === 'F2') {
-          e.preventDefault();
-          console.log('🔥 F2 pressionado (DOM)');
-          handleShortcut('F2');
-        } else if (e.key === 'F3') {
-          e.preventDefault();
-          console.log('🔥 F3 pressionado (DOM)');
-          handleShortcut('F3');
-        } else if (e.key === 'F4') {
-          e.preventDefault();
-          console.log('🔥 F4 pressionado (DOM)');
-          handleShortcut('F4');
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          if (showConfirmModal) {
-            handleConfirmModalClose(false);
-          } else {
-            console.log('🔥 ESC pressionado (DOM)');
-            handleShortcut('ESC');
-          }
-        }
-      };
-
-      window.addEventListener('keydown', handleKeyPress);
-      return (): void => {
-        window.removeEventListener('keydown', handleKeyPress);
-      };
-    } else {
-      console.log('🔗 Modo Electron - usando atalhos globais');
-    }
-  }, [isConnected, codigoAtual, quantidadeAtual, items, showConfirmModal]);
-
-  // Auto-foco inicial e quando componente monta
+  // Auto-foco inicial
   useEffect(() => {
     if (currentScreen === 'PDV') {
       focusCodigoInput(500);
@@ -440,7 +471,7 @@ const PDVInterface: React.FC = () => {
     }
   };
 
-   // ✅ RENDERIZAÇÃO CONDICIONAL BASEADA NA TELA ATUAL
+  // Renderização condicional baseada na tela atual
   if (currentScreen === 'PAYMENT') {
     return (
       <PaymentScreen
@@ -487,7 +518,6 @@ const PDVInterface: React.FC = () => {
             onQuantidadeChange={handleQuantidadeChange}
             onQuantidadeKeyPress={handleQuantidadeKeyPress}
             quantidadeProduto={quantidadeProduto}
-            // Passar ref para o componente filho
             codigoInputRef={codigoInputRef}
           />
         </div>
@@ -495,11 +525,34 @@ const PDVInterface: React.FC = () => {
         {/* Product Display Component */}
         <ProductDisplay items={items} />
 
-        {/* Footer Actions Component */}
-        <FooterActions 
-          isConnected={isConnected}
-          isListening={isConnected}
-        />
+        {/* Footer Actions Component - ATUALIZADO com novos atalhos */}
+        <div className="bg-gray-100 p-4 rounded-b-lg border-t">
+          <div className="flex justify-center space-x-4 text-xs text-gray-600">
+            <div className="flex space-x-4">
+              <span><strong>F1</strong> Adicionar</span>
+              <span><strong>F2</strong> Pagamento</span>
+              <span><strong>F3</strong> Cancelar Item</span>
+              <span><strong>F4</strong> Cancelar Venda</span>
+              <span><strong>F5</strong> Sincronizar</span>
+              <span><strong>F6</strong> Focar Código</span>
+              <span><strong>ESC</strong> Limpar</span>
+            </div>
+
+            <span className="text-gray-400">|</span>
+
+            <div className="flex space-x-4">
+              <span><strong>Ctrl+Del</strong> Cancelar Venda</span>
+              <span><strong>Ctrl+⌫</strong> Cancelar Item</span>
+            </div>
+
+            {isConnected && (
+              <>
+                <span className="text-gray-400">|</span>
+                <span className="text-green-600"><strong>🌐</strong> Online</span>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Notificações customizadas */}
         {(error || success) && (
