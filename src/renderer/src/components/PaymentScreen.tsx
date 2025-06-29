@@ -115,6 +115,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
   
   const paymentValueInputRef = useRef<HTMLInputElement>(null);
   const receivedValueInputRef = useRef<HTMLInputElement>(null);
+  const quantidadeItens: number = items.reduce((sum: number, item: Item) => sum + item.qtde, 0);
 
   // Arredondar total da venda para evitar problemas
   const totalVendaRounded = roundMoney(totalVenda);
@@ -419,7 +420,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     }`}
                   >
                     <div className="text-2xl mb-1">{icon}</div>
-                    <div className="text-sm font-semibold">{label}</div>
+                    <div className="text-2xl font-semibold">{label}</div>
                     <div className="text-xs opacity-75 mt-1">({key})</div>
                   </button>
                 ))}
@@ -478,7 +479,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Itens:</span>
-                  <span>{items.length}</span>
+                  <span>{quantidadeItens}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total:</span>
@@ -557,7 +558,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
         </div>
       </div>
 
-      {/* ✅ NOVO: Modal de Entrada de Pagamento */}
+      {/* Modal de Entrada de Pagamento */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
@@ -578,7 +579,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     type="text"
                     value={modalPaymentValue}
                     onChange={handleModalValueChange}
-                    className="w-full p-3 border rounded-lg text-lg text-center bg-gray-50"
+                    className="w-full p-3 border rounded-lg text-2xl text-center bg-gray-50"
                     placeholder="0,00"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
@@ -607,7 +608,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     type="text"
                     value={modalReceivedValue}
                     onChange={handleModalReceivedChange}
-                    className="w-full p-3 border rounded-lg text-lg text-center font-bold"
+                    className="w-full p-3 border rounded-lg text-2xl text-center font-bold"
                     placeholder="0,00"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
@@ -647,7 +648,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     type="text"
                     value={modalPaymentValue}
                     onChange={handleModalValueChange}
-                    className="w-full p-3 border rounded-lg text-lg text-center font-bold"
+                    className="w-full p-3 border rounded-lg text-2xl text-center font-bold"
                     placeholder="0,00"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
@@ -695,23 +696,23 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold mb-4 text-center">Confirmar Finalização</h3>
+            <h3 className="text-2xl font-semibold mb-4 text-center">Confirmar Finalização</h3>
             
-            <div className="space-y-2 mb-6 text-sm">
-              <div className="flex justify-between">
+            <div className="space-y-2 mb-6">
+              <div className="flex text-xl justify-between">
                 <span>Total da Venda:</span>
                 <span className="font-semibold">{formatCurrency(totalVenda)}</span>
               </div>
               <div className="border-t pt-2">
-                <div className="font-medium mb-2">Formas de Pagamento:</div>
+                <div className="font-medium mb-2 text-xl">Formas de Pagamento:</div>
                 {payments.map((payment) => (
                   <div key={payment.id} className="ml-4 mb-1">
-                    <div className="flex justify-between text-xs">
+                    <div className="flex justify-between text-xl">
                       <span>{getPaymentTypeLabel(payment.tipo)}:</span>
                       <span>{formatCurrency(payment.valor)}</span>
                     </div>
                     {payment.troco && payment.troco > 0 && (
-                      <div className="flex justify-between text-xs text-gray-600 ml-2">
+                      <div className="flex justify-between text-sm text-gray-600 ml-2">
                         <span>• Recebido: {formatCurrency(payment.valorRecebido!)}</span>
                         <span className="text-green-600 font-medium">
                           Troco: {formatCurrency(payment.troco)}
@@ -721,7 +722,7 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                   </div>
                 ))}
               </div>
-              <div className="border-t pt-2 flex justify-between font-bold">
+              <div className="border-t pt-2 flex justify-between font-bold text-xl">
                 <span>Total Pago:</span>
                 <span className="text-green-600">{formatCurrency(totalPago)}</span>
               </div>
