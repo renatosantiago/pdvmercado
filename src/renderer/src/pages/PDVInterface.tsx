@@ -1,5 +1,3 @@
-// src/renderer/src/pages/PDVInterface.tsx - SISTEMA DE ATALHOS LOCAIS
-
 import React, { useState, useEffect, useRef } from 'react';
 
 // Importar componentes
@@ -7,7 +5,6 @@ import Header from '../components/Header';
 import ProductTable from '../components/ProductTable';
 import ProductForm from '../components/ProductForm';
 import ProductDisplay from '../components/ProductDisplay';
-import FooterActions from '../components/FooterActions';
 
 // Importar tipos
 import { Item, ShortcutKey, Payment, AppScreen } from '../types';
@@ -40,7 +37,7 @@ const PDVInterface: React.FC = () => {
     isConnected, 
     findProductByCode, 
     createSale, 
-    syncCache, // ✅ NOVO: função para sincronizar cache
+    syncCache,
     onBarcodeScanned, 
     onShortcut, 
     onNotification 
@@ -125,7 +122,7 @@ const PDVInterface: React.FC = () => {
     }, 3000);
   };
 
-  // ✅ NOVO: Função para sincronizar cache manualmente
+  // Função para sincronizar cache manualmente
   const handleManualSync = async (): Promise<void> => {
     try {
       setLoading(true);
@@ -146,7 +143,7 @@ const PDVInterface: React.FC = () => {
     }
   };
 
-  // ✅ SISTEMA DE ATALHOS LOCAIS APRIMORADO
+  // SISTEMA DE ATALHOS LOCAIS APRIMORADO
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent): void => {
       // Ignorar se modal estiver aberto ou não estiver na tela PDV
@@ -211,7 +208,6 @@ const PDVInterface: React.FC = () => {
           }
           break;
 
-        // ✅ ATALHOS ADICIONAIS ÚTEIS
         case 'F6':
           e.preventDefault();
           console.log('🔥 F6 - Focar código');
@@ -236,7 +232,7 @@ const PDVInterface: React.FC = () => {
       }
     };
 
-    // ✅ ADICIONAR LISTENER PARA TELA PDV
+    // ADICIONAR LISTENER PARA TELA PDV
     if (currentScreen === 'PDV') {
       console.log('🎹 Ativando atalhos locais para tela PDV');
       document.addEventListener('keydown', handleKeyPress);

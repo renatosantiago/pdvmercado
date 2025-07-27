@@ -27,7 +27,7 @@ const ProductTable: React.FC<ProductTableProps> = ({ items, isConnected }) => {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Items Table */}
-      <div className="bg-gray-50 rounded-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-335px)]">
+      <div className="bg-gray-50 rounded-lg overflow-hidden flex flex-col h-full max-h-[calc(100vh-325px)]">
         {/* Table Header - Fixed */}
         <div className="bg-gray-200 flex-shrink-0">
           <table className="w-full table-fixed">

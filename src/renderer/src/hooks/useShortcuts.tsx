@@ -1,5 +1,3 @@
-// src/renderer/src/hooks/useShortcuts.tsx - HOOK PARA GERENCIAR ATALHOS POR TELA
-
 import { useEffect, useRef } from 'react';
 
 export interface ShortcutConfig {
@@ -112,7 +110,7 @@ export function useShortcuts(
   };
 }
 
-// ✅ HOOK ESPECÍFICO PARA PDV
+// HOOK ESPECÍFICO PARA PDV
 export function usePDVShortcuts(actions: {
   addItem: () => void;
   goToPayment: () => void;
@@ -180,7 +178,7 @@ export function usePDVShortcuts(actions: {
   });
 }
 
-// ✅ HOOK PARA TELA DE PAGAMENTO
+// HOOK PARA TELA DE PAGAMENTO
 export function usePaymentShortcuts(actions: {
   addPayment: () => void;
   finalizeSale: () => void;
@@ -237,7 +235,7 @@ export function usePaymentShortcuts(actions: {
   });
 }
 
-// ✅ EXEMPLO DE USO EM OUTRAS TELAS
+// EXEMPLO DE USO EM OUTRAS TELAS
 export function useGenericShortcuts(
   customShortcuts: ShortcutConfig[],
   screenName: string,

@@ -269,7 +269,7 @@ function setupPDVHandlers(): void {
     }
   });
 
-   // ✅ NOVO HANDLER PARA LOGS
+   // HANDLER PARA LOGS
   ipcMain.handle('logs:export', async (event, filters) => {
     try {
       logger.info('LOG_EXPORT', 'Exportando logs', filters);
@@ -296,7 +296,7 @@ function setupPDVHandlers(): void {
     }
   });
 
-  // ✅ HANDLER PARA ESTATÍSTICAS DE LOGS
+  // HANDLER PARA ESTATÍSTICAS DE LOGS
   ipcMain.handle('logs:stats', async () => {
     try {
       const stats = logger.getLogStats();
@@ -352,7 +352,7 @@ function setupPDVShortcuts(): void {
     }
   });
 
-   // ✅ ATALHO PARA ABRIR LOGS (F12)
+   // ATALHO PARA ABRIR LOGS (F12)
   globalShortcut.register('F12', () => {
     logger.info('SHORTCUT', 'Abrindo visualizador de logs');
     
@@ -360,7 +360,7 @@ function setupPDVShortcuts(): void {
     mainWindow?.webContents.send('pdv:open-logs');
   });
 
-  // ✅ ATALHO PARA EXPORTAR LOGS (Ctrl+L)
+  // ATALHO PARA EXPORTAR LOGS (Ctrl+L)
   globalShortcut.register('CommandOrControl+L', async () => {
     try {
       logger.info('LOG_EXPORT', 'Exportacoo de logs iniciada via atalho');
@@ -517,7 +517,7 @@ app.whenReady().then(async () => {
 
 // Quit when all windows are closed, except on macOS
 app.on('window-all-closed', async () => {
-  // ✅ CLEANUP ATUALIZADO PARA API
+  // CLEANUP ATUALIZADO PARA API
   try {
     if (barcodeService) {
       await barcodeService.disconnect();

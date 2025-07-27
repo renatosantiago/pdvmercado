@@ -125,10 +125,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
     ? addMoney(...payments.map(p => p.valor))
     : 0;
   
-  // Calcular total de troco
-  const totalTroco = payments
-    .filter(p => p.troco && p.troco > 0)
-    .reduce((sum, p) => addMoney(sum, p.troco!), 0);
   
   // Calcular restante com precisão
   const restante = subtractMoney(totalVendaRounded, totalPago);
@@ -143,6 +139,10 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
         handleModalAddPayment();
       } else if (isComplete && !showConfirmModal) {
         handleFinalizeSale();
+      } else if (!showConfirmModal) {
+        openPaymentModal(currentPaymentType);
+      } else if (showConfirmModal) {
+        confirmFinalizeSale();
       } else {
         openPaymentModal(currentPaymentType);
       }
@@ -242,6 +242,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
     
     const valorPagamento = parseMoneyValue(modalPaymentValue);
     const valorRecebido = parseMoneyValue(modalReceivedValue);
+
+    console.log(subtractMoney(valorRecebido, valorPagamento));
     
     return Math.max(0, subtractMoney(valorRecebido, valorPagamento));
   };
@@ -273,9 +275,8 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
         return;
       }
 
-      if (isGreaterThan(valor, valorRecebido)) {
-        alert('Valor recebido não pode ser menor que o valor a pagar!');
-        return;
+      if (isLessOrEqual(valorRecebido, valorPagamento)) {
+        valorPagamento = valorRecebido;
       }
 
       trocoCalculado = calculateChange();
@@ -506,14 +507,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
                     {formatCurrency(restante)}
                   </span>
                 </div>
-                {totalTroco > 0 && (
-                  <div className="flex justify-between text-lg">
-                    <span>Troco Total:</span>
-                    <span className="font-bold text-2xl text-orange-600">
-                      {formatCurrency(totalTroco)}
-                    </span>
-                  </div>
-                )}
                 {isComplete && (
                   <div className="text-center text-green-600 font-bold">
                     ✓ PAGAMENTO COMPLETO
@@ -529,11 +522,6 @@ const PaymentScreen: React.FC<PaymentScreenProps> = ({
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
               <span><strong>F6-F10</strong> Selecionar Forma + <strong>Enter</strong> Informar Valor | <strong>ESC</strong> Cancelar</span>
-              {totalTroco > 0 && (
-                <span className="ml-4 text-orange-600 font-medium">
-                  💰 Troco: {formatCurrency(totalTroco)}
-                </span>
-              )}
             </div>
             <div className="flex space-x-3">
               <button
